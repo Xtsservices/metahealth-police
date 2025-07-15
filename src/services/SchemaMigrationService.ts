@@ -78,6 +78,9 @@ export class SchemaMigrationService {
             await client.query(`
                 INSERT INTO schema_migrations (version, description, status)
                 VALUES ($1, $2, 'completed')
+                ON CONFLICT (version) DO UPDATE SET 
+                status = 'completed', 
+                executed_at = CURRENT_TIMESTAMP
             `, [migration.version, migration.description]);
             
             await client.query('COMMIT');
@@ -91,6 +94,9 @@ export class SchemaMigrationService {
                 await client.query(`
                     INSERT INTO schema_migrations (version, description, status)
                     VALUES ($1, $2, 'failed')
+                    ON CONFLICT (version) DO UPDATE SET 
+                    status = 'failed', 
+                    executed_at = CURRENT_TIMESTAMP
                 `, [migration.version, migration.description]);
             } catch (recordError) {
                 console.error('Failed to record migration failure:', recordError);
@@ -184,11 +190,10 @@ export class SchemaMigrationService {
             version: '2025.01.01_hospital_approval_fields',
             description: 'Add approval fields to hospitals table',
             sql: `
-                ALTER TABLE hospitals 
-                ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'pending',
-                ADD COLUMN IF NOT EXISTS approved_by UUID,
-                ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE,
-                ADD COLUMN IF NOT EXISTS approval_notes TEXT;
+                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'pending';
+                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_by UUID;
+                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
+                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_notes TEXT;
                 
                 ALTER TABLE hospitals 
                 ADD CONSTRAINT IF NOT EXISTS hospitals_approval_status_check 
@@ -198,13 +203,11 @@ export class SchemaMigrationService {
             `,
             rollback: `
                 DROP INDEX IF EXISTS idx_hospitals_approval_status;
-                ALTER TABLE hospitals 
-                DROP CONSTRAINT IF EXISTS hospitals_approval_status_check;
-                ALTER TABLE hospitals 
-                DROP COLUMN IF EXISTS approval_notes,
-                DROP COLUMN IF EXISTS approved_at,
-                DROP COLUMN IF EXISTS approved_by,
-                DROP COLUMN IF EXISTS approval_status;
+                ALTER TABLE hospitals DROP CONSTRAINT IF EXISTS hospitals_approval_status_check;
+                ALTER TABLE hospitals DROP COLUMN IF EXISTS approval_notes;
+                ALTER TABLE hospitals DROP COLUMN IF EXISTS approved_at;
+                ALTER TABLE hospitals DROP COLUMN IF EXISTS approved_by;
+                ALTER TABLE hospitals DROP COLUMN IF EXISTS approval_status;
             `
         },
         {
@@ -244,12 +247,11 @@ export class SchemaMigrationService {
             version: '2025.01.04_patient_address_fields',
             description: 'Add address fields to patients table',
             sql: `
-                ALTER TABLE patients 
-                ADD COLUMN IF NOT EXISTS address_street VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS address_city VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS address_state VARCHAR(50),
-                ADD COLUMN IF NOT EXISTS address_zip_code VARCHAR(20),
-                ADD COLUMN IF NOT EXISTS address_country VARCHAR(50) DEFAULT 'India';
+                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_street VARCHAR(255);
+                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_city VARCHAR(100);
+                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_state VARCHAR(50);
+                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_zip_code VARCHAR(20);
+                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_country VARCHAR(50) DEFAULT 'India';
                 
                 CREATE INDEX IF NOT EXISTS idx_patients_city_state ON patients(address_city, address_state);
             `,
@@ -267,10 +269,9 @@ export class SchemaMigrationService {
             version: '2025.01.05_hospital_business_fields',
             description: 'Add business information fields to hospitals table',
             sql: `
-                ALTER TABLE hospitals 
-                ADD COLUMN IF NOT EXISTS gst_number VARCHAR(50),
-                ADD COLUMN IF NOT EXISTS pan_number VARCHAR(20),
-                ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(15);
+                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS gst_number VARCHAR(50);
+                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pan_number VARCHAR(20);
+                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(15);
                 
                 CREATE INDEX IF NOT EXISTS idx_hospitals_gst_number ON hospitals(gst_number);
                 CREATE INDEX IF NOT EXISTS idx_hospitals_pan_number ON hospitals(pan_number);
@@ -278,10 +279,9 @@ export class SchemaMigrationService {
             rollback: `
                 DROP INDEX IF EXISTS idx_hospitals_pan_number;
                 DROP INDEX IF EXISTS idx_hospitals_gst_number;
-                ALTER TABLE hospitals 
-                DROP COLUMN IF EXISTS mobile_number,
-                DROP COLUMN IF EXISTS pan_number,
-                DROP COLUMN IF EXISTS gst_number;
+                ALTER TABLE hospitals DROP COLUMN IF EXISTS mobile_number;
+                ALTER TABLE hospitals DROP COLUMN IF EXISTS pan_number;
+                ALTER TABLE hospitals DROP COLUMN IF EXISTS gst_number;
             `
         },
         {
