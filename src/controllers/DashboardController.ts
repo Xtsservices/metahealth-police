@@ -91,7 +91,7 @@ export class DashboardController {
             const recentAppointmentsQuery = `
                 SELECT COUNT(*) as count 
                 FROM appointments 
-                WHERE created_at >= NOW() - INTERVAL '30 days'
+                WHERE created_date >= NOW() - INTERVAL '30 days'
             `;
 
             const recentAppointments = await client.query(recentAppointmentsQuery);

@@ -3,8 +3,8 @@ import pool from '../config/database';
 export interface MigrationStep {
     version: string;
     description: string;
-    sql: string;
-    rollback?: string;
+    sql: string | string[];
+    rollback?: string | string[];
 }
 
 export class SchemaMigrationService {
@@ -70,7 +70,10 @@ export class SchemaMigrationService {
             const startTime = Date.now();
             
             // Execute migration
-            await client.query(migration.sql);
+            const sqlStatements = Array.isArray(migration.sql) ? migration.sql : [migration.sql];
+            for (const sql of sqlStatements) {
+                await client.query(sql);
+            }
             
             const executionTime = Date.now() - startTime;
             
@@ -189,130 +192,102 @@ export class SchemaMigrationService {
         {
             version: '2025.01.01_hospital_approval_fields',
             description: 'Add approval fields to hospitals table',
-            sql: `
-                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'pending';
-                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_by UUID;
-                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
-                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_notes TEXT;
-                
-                ALTER TABLE hospitals 
-                ADD CONSTRAINT IF NOT EXISTS hospitals_approval_status_check 
-                CHECK (approval_status IN ('pending', 'approved', 'rejected'));
-                
-                CREATE INDEX IF NOT EXISTS idx_hospitals_approval_status ON hospitals(approval_status);
-            `,
-            rollback: `
-                DROP INDEX IF EXISTS idx_hospitals_approval_status;
-                ALTER TABLE hospitals DROP CONSTRAINT IF EXISTS hospitals_approval_status_check;
-                ALTER TABLE hospitals DROP COLUMN IF EXISTS approval_notes;
-                ALTER TABLE hospitals DROP COLUMN IF EXISTS approved_at;
-                ALTER TABLE hospitals DROP COLUMN IF EXISTS approved_by;
-                ALTER TABLE hospitals DROP COLUMN IF EXISTS approval_status;
-            `
+            sql: [
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'pending'`,
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_by UUID`,
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE`,
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_notes TEXT`,
+                `ALTER TABLE hospitals ADD CONSTRAINT IF NOT EXISTS hospitals_approval_status_check CHECK (approval_status IN ('pending', 'approved', 'rejected'))`,
+                `CREATE INDEX IF NOT EXISTS idx_hospitals_approval_status ON hospitals(approval_status)`
+            ],
+            rollback: [
+                `DROP INDEX IF EXISTS idx_hospitals_approval_status`,
+                `ALTER TABLE hospitals DROP CONSTRAINT IF EXISTS hospitals_approval_status_check`,
+                `ALTER TABLE hospitals DROP COLUMN IF EXISTS approval_notes`,
+                `ALTER TABLE hospitals DROP COLUMN IF EXISTS approved_at`,
+                `ALTER TABLE hospitals DROP COLUMN IF EXISTS approved_by`,
+                `ALTER TABLE hospitals DROP COLUMN IF EXISTS approval_status`
+            ]
         },
         {
             version: '2025.01.03_user_status_column',
             description: 'Add status field to users table',
-            sql: `
-                ALTER TABLE users 
-                ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'inactive';
-                
-                ALTER TABLE users 
-                ADD CONSTRAINT IF NOT EXISTS users_status_check 
-                CHECK (status IN ('active', 'inactive', 'suspended'));
-                
-                CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
-            `,
-            rollback: `
-                DROP INDEX IF EXISTS idx_users_status;
-                ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
-                ALTER TABLE users DROP COLUMN IF EXISTS status;
-            `
+            sql: [
+                `ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'inactive'`,
+                `ALTER TABLE users ADD CONSTRAINT IF NOT EXISTS users_status_check CHECK (status IN ('active', 'inactive', 'suspended'))`,
+                `CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`
+            ],
+            rollback: [
+                `DROP INDEX IF EXISTS idx_users_status`,
+                `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check`,
+                `ALTER TABLE users DROP COLUMN IF EXISTS status`
+            ]
         },
         {
             version: '2025.01.07_user_active_status',
             description: 'Add is_active field to users table',
-            sql: `
-                ALTER TABLE users 
-                ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
-                
-                CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
-            `,
-            rollback: `
-                DROP INDEX IF EXISTS idx_users_is_active;
-                ALTER TABLE users DROP COLUMN IF EXISTS is_active;
-            `
+            sql: [
+                `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`,
+                `CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)`
+            ],
+            rollback: [
+                `DROP INDEX IF EXISTS idx_users_is_active`,
+                `ALTER TABLE users DROP COLUMN IF EXISTS is_active`
+            ]
         },
         {
             version: '2025.01.04_patient_address_fields',
             description: 'Add address fields to patients table',
-            sql: `
-                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_street VARCHAR(255);
-                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_city VARCHAR(100);
-                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_state VARCHAR(50);
-                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_zip_code VARCHAR(20);
-                ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_country VARCHAR(50) DEFAULT 'India';
-                
-                CREATE INDEX IF NOT EXISTS idx_patients_city_state ON patients(address_city, address_state);
-            `,
-            rollback: `
-                DROP INDEX IF EXISTS idx_patients_city_state;
-                ALTER TABLE patients 
-                DROP COLUMN IF EXISTS address_country,
-                DROP COLUMN IF EXISTS address_zip_code,
-                DROP COLUMN IF EXISTS address_state,
-                DROP COLUMN IF EXISTS address_city,
-                DROP COLUMN IF EXISTS address_street;
-            `
+            sql: [
+                `ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_street VARCHAR(255)`,
+                `ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_city VARCHAR(100)`,
+                `ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_state VARCHAR(50)`,
+                `ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_zip_code VARCHAR(20)`,
+                `ALTER TABLE patients ADD COLUMN IF NOT EXISTS address_country VARCHAR(50) DEFAULT 'India'`,
+                `CREATE INDEX IF NOT EXISTS idx_patients_city_state ON patients(address_city, address_state)`
+            ],
+            rollback: [
+                `DROP INDEX IF EXISTS idx_patients_city_state`,
+                `ALTER TABLE patients DROP COLUMN IF EXISTS address_country`,
+                `ALTER TABLE patients DROP COLUMN IF EXISTS address_zip_code`,
+                `ALTER TABLE patients DROP COLUMN IF EXISTS address_state`,
+                `ALTER TABLE patients DROP COLUMN IF EXISTS address_city`,
+                `ALTER TABLE patients DROP COLUMN IF EXISTS address_street`
+            ]
         },
         {
             version: '2025.01.05_hospital_business_fields',
             description: 'Add business information fields to hospitals table',
-            sql: `
-                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS gst_number VARCHAR(50);
-                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pan_number VARCHAR(20);
-                ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(15);
-                
-                CREATE INDEX IF NOT EXISTS idx_hospitals_gst_number ON hospitals(gst_number);
-                CREATE INDEX IF NOT EXISTS idx_hospitals_pan_number ON hospitals(pan_number);
-            `,
-            rollback: `
-                DROP INDEX IF EXISTS idx_hospitals_pan_number;
-                DROP INDEX IF EXISTS idx_hospitals_gst_number;
-                ALTER TABLE hospitals DROP COLUMN IF EXISTS mobile_number;
-                ALTER TABLE hospitals DROP COLUMN IF EXISTS pan_number;
-                ALTER TABLE hospitals DROP COLUMN IF EXISTS gst_number;
-            `
+            sql: [
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS gst_number VARCHAR(50)`,
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pan_number VARCHAR(20)`,
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(15)`,
+                `CREATE INDEX IF NOT EXISTS idx_hospitals_gst_number ON hospitals(gst_number)`,
+                `CREATE INDEX IF NOT EXISTS idx_hospitals_pan_number ON hospitals(pan_number)`
+            ],
+            rollback: [
+                `DROP INDEX IF EXISTS idx_hospitals_pan_number`,
+                `DROP INDEX IF EXISTS idx_hospitals_gst_number`,
+                `ALTER TABLE hospitals DROP COLUMN IF EXISTS mobile_number`,
+                `ALTER TABLE hospitals DROP COLUMN IF EXISTS pan_number`,
+                `ALTER TABLE hospitals DROP COLUMN IF EXISTS gst_number`
+            ]
         },
         {
             version: '2025.01.06_appointment_documents_base64',
             description: 'Add base64 storage support to appointment_documents',
-            sql: `
-                ALTER TABLE appointment_documents 
-                ADD COLUMN IF NOT EXISTS file_data TEXT;
-                
-                -- Update constraint to allow either file_path or file_data
-                ALTER TABLE appointment_documents 
-                DROP CONSTRAINT IF EXISTS file_storage_check;
-                
-                ALTER TABLE appointment_documents 
-                ADD CONSTRAINT file_storage_check 
-                CHECK (file_path IS NOT NULL OR file_data IS NOT NULL);
-                
-                CREATE INDEX IF NOT EXISTS idx_appointment_documents_file_data 
-                ON appointment_documents USING HASH (md5(file_data)) 
-                WHERE file_data IS NOT NULL;
-            `,
-            rollback: `
-                DROP INDEX IF EXISTS idx_appointment_documents_file_data;
-                ALTER TABLE appointment_documents 
-                DROP CONSTRAINT IF EXISTS file_storage_check;
-                ALTER TABLE appointment_documents 
-                ADD CONSTRAINT file_storage_check 
-                CHECK (file_path IS NOT NULL);
-                ALTER TABLE appointment_documents 
-                DROP COLUMN IF EXISTS file_data;
-            `
+            sql: [
+                `ALTER TABLE appointment_documents ADD COLUMN IF NOT EXISTS file_data TEXT`,
+                `ALTER TABLE appointment_documents DROP CONSTRAINT IF EXISTS file_storage_check`,
+                `ALTER TABLE appointment_documents ADD CONSTRAINT file_storage_check CHECK (file_path IS NOT NULL OR file_data IS NOT NULL)`,
+                `CREATE INDEX IF NOT EXISTS idx_appointment_documents_file_data ON appointment_documents USING HASH (md5(file_data)) WHERE file_data IS NOT NULL`
+            ],
+            rollback: [
+                `DROP INDEX IF EXISTS idx_appointment_documents_file_data`,
+                `ALTER TABLE appointment_documents DROP CONSTRAINT IF EXISTS file_storage_check`,
+                `ALTER TABLE appointment_documents ADD CONSTRAINT file_storage_check CHECK (file_path IS NOT NULL)`,
+                `ALTER TABLE appointment_documents DROP COLUMN IF EXISTS file_data`
+            ]
         }
     ];
 
