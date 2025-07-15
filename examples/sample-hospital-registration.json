@@ -1,0 +1,19 @@
+{
+  "name": "Metropolitan General Hospital",
+  "licenseNumber": "NYC-HOSP-2024-001",
+  "gstNumber": "22AAAAA0000A1Z5",
+  "panNumber": "AAAAA0000A",
+  "address": {
+    "street": "123 Healthcare Boulevard",
+    "city": "Metro City",
+    "state": "NY",
+    "zipCode": "10001",
+    "country": "USA"
+  },
+  "contactInfo": {
+    "countryCode": "+1",
+    "phone": "555-123-4567",
+    "email": "info@metrogeneralhospital.com",
+    "pointOfContact": "Dr. John Smith"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "metahealth-police",
+  "version": "1.0.0",
+  "description": "MetaHealth Police project",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc -w",
+    "clean": "rimraf dist",
+    "db:setup": "ts-node database/setup.ts",
+    "db:migrate": "psql -U postgres -d metahealth_police -f database/migrations/001_create_hospitals_table.sql"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/dotenv": "^6.1.1",
+    "@types/express": "^5.0.3",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.15.4",
+    "@types/uuid": "^10.0.0",
+    "rimraf": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "pg": "^8.16.3",
+    "uuid": "^11.1.0"
+  }
+}

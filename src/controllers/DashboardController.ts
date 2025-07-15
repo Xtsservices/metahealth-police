@@ -1,0 +1,664 @@
+import { Request, Response } from 'express';
+import pool from '../config/database';
+
+export class DashboardController {
+    // Get dashboard statistics for super admin
+    static async getDashboardStats(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        
+        try {
+            // Get hospital counts by status
+            const hospitalStatsQuery = `
+                SELECT 
+                    status,
+                    COUNT(*) as count
+                FROM hospitals 
+                GROUP BY status
+                ORDER BY status
+            `;
+
+            const hospitalStats = await client.query(hospitalStatsQuery);
+
+            // Get total hospitals count
+            const totalHospitalsQuery = `SELECT COUNT(*) as total FROM hospitals`;
+            const totalHospitals = await client.query(totalHospitalsQuery);
+
+            // Get user counts by role and status
+            const userStatsQuery = `
+                SELECT 
+                    role,
+                    status,
+                    COUNT(*) as count
+                FROM users 
+                GROUP BY role, status
+                ORDER BY role, status
+            `;
+
+            const userStats = await client.query(userStatsQuery);
+
+            // Get total users count
+            const totalUsersQuery = `SELECT COUNT(*) as total FROM users`;
+            const totalUsers = await client.query(totalUsersQuery);
+
+            // Get recent registrations (last 30 days)
+            const recentHospitalsQuery = `
+                SELECT COUNT(*) as count 
+                FROM hospitals 
+                WHERE registration_date >= NOW() - INTERVAL '30 days'
+            `;
+
+            const recentHospitals = await client.query(recentHospitalsQuery);
+
+            // Get recent users (last 30 days)
+            const recentUsersQuery = `
+                SELECT COUNT(*) as count 
+                FROM users 
+                WHERE created_date >= NOW() - INTERVAL '30 days'
+            `;
+
+            const recentUsers = await client.query(recentUsersQuery);
+
+            // Format hospital statistics
+            const hospitalStatusCounts = {
+                active: 0,
+                inactive: 0,
+                suspended: 0,
+                rejected: 0
+            };
+
+            hospitalStats.rows.forEach(row => {
+                if (hospitalStatusCounts.hasOwnProperty(row.status)) {
+                    hospitalStatusCounts[row.status as keyof typeof hospitalStatusCounts] = parseInt(row.count);
+                }
+            });
+
+            // Format user statistics
+            const userStatistics = userStats.rows.reduce((acc, row) => {
+                if (!acc[row.role]) {
+                    acc[row.role] = { active: 0, inactive: 0, rejected: 0 };
+                }
+                acc[row.role][row.status] = parseInt(row.count);
+                return acc;
+            }, {} as Record<string, Record<string, number>>);
+
+            res.status(200).json({
+                success: true,
+                message: 'Dashboard statistics retrieved successfully',
+                data: {
+                    hospitals: {
+                        total: parseInt(totalHospitals.rows[0].total),
+                        statusCounts: hospitalStatusCounts,
+                        recentRegistrations: parseInt(recentHospitals.rows[0].count)
+                    },
+                    users: {
+                        total: parseInt(totalUsers.rows[0].total),
+                        byRoleAndStatus: userStatistics,
+                        recentRegistrations: parseInt(recentUsers.rows[0].count)
+                    },
+                    summary: {
+                        totalHospitals: parseInt(totalHospitals.rows[0].total),
+                        activeHospitals: hospitalStatusCounts.active,
+                        inactiveHospitals: hospitalStatusCounts.inactive,
+                        suspendedHospitals: hospitalStatusCounts.suspended,
+                        rejectedHospitals: hospitalStatusCounts.rejected,
+                        totalUsers: parseInt(totalUsers.rows[0].total)
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('Error retrieving dashboard statistics:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while retrieving dashboard statistics'
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Get hospital status overview
+    static async getHospitalStatusOverview(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        
+        try {
+            const { status, page, limit } = req.query;
+            
+            // Validate status parameter if provided
+            if (status && typeof status === 'string') {
+                const validStatuses = ['active', 'inactive', 'suspended', 'rejected'];
+                if (!validStatuses.includes(status.toLowerCase())) {
+                    res.status(400).json({
+                        success: false,
+                        message: `Invalid status '${status}'. Valid statuses are: ${validStatuses.join(', ')}`,
+                        validStatuses: validStatuses
+                    });
+                    return;
+                }
+            }
+
+            // Parse and validate pagination parameters
+            const pageNumber = parseInt(page as string) || 1;
+            const pageSize = parseInt(limit as string) || 10;
+            
+            // Validate pagination parameters
+            if (pageNumber < 1) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Page number must be greater than 0'
+                });
+                return;
+            }
+            
+            if (pageSize < 1 || pageSize > 100) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Limit must be between 1 and 100'
+                });
+                return;
+            }
+
+            const offset = (pageNumber - 1) * pageSize;
+            
+            // Build query with optional status filter
+            let query = `
+                SELECT 
+                    h.id,
+                    h.name,
+                    h.license_number,
+                    h.status,
+                    h.registration_date,
+                    h.address_city,
+                    h.address_state,
+                    COUNT(u.id) as user_count
+                FROM hospitals h
+                LEFT JOIN users u ON h.id = u.hospital_id
+            `;
+            
+            // Build count query for total records (without pagination)
+            let countQuery = `
+                SELECT COUNT(DISTINCT h.id) as total
+                FROM hospitals h
+                LEFT JOIN users u ON h.id = u.hospital_id
+            `;
+            
+            const queryParams: any[] = [];
+            const countParams: any[] = [];
+            
+            // Add status filter if provided and valid
+            if (status && typeof status === 'string') {
+                query += ` WHERE h.status = $1`;
+                countQuery += ` WHERE h.status = $1`;
+                queryParams.push(status.toLowerCase());
+                countParams.push(status.toLowerCase());
+            }
+            
+            // Add grouping, ordering, and pagination to main query
+            query += `
+                GROUP BY h.id, h.name, h.license_number, h.status, h.registration_date, h.address_city, h.address_state
+                ORDER BY h.registration_date DESC
+                LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+            `;
+            
+            queryParams.push(pageSize, offset);
+
+            // Execute both queries
+            const [result, countResult] = await Promise.all([
+                client.query(query, queryParams),
+                client.query(countQuery, countParams)
+            ]);
+
+            const totalRecords = parseInt(countResult.rows[0].total);
+            const totalPages = Math.ceil(totalRecords / pageSize);
+
+            const hospitals = result.rows.map(row => ({
+                id: row.id,
+                name: row.name,
+                licenseNumber: row.license_number,
+                status: row.status,
+                registrationDate: row.registration_date,
+                location: `${row.address_city}, ${row.address_state}`,
+                userCount: parseInt(row.user_count)
+            }));
+
+            res.status(200).json({
+                success: true,
+                message: status 
+                    ? `Hospital status overview retrieved successfully (filtered by: ${status})` 
+                    : 'Hospital status overview retrieved successfully',
+                data: hospitals,
+                pagination: {
+                    currentPage: pageNumber,
+                    totalPages: totalPages,
+                    totalRecords: totalRecords,
+                    recordsPerPage: pageSize,
+                    hasNextPage: pageNumber < totalPages,
+                    hasPreviousPage: pageNumber > 1
+                },
+                count: hospitals.length,
+                filter: status ? { status: status } : null
+            });
+
+        } catch (error) {
+            console.error('Error retrieving hospital overview:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while retrieving hospital overview'
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Get user statistics by hospital
+    static async getUserStatsByHospital(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        
+        try {
+            const query = `
+                SELECT 
+                    h.id as hospital_id,
+                    h.name as hospital_name,
+                    h.status as hospital_status,
+                    u.role,
+                    u.status as user_status,
+                    COUNT(u.id) as user_count
+                FROM hospitals h
+                LEFT JOIN users u ON h.id = u.hospital_id
+                GROUP BY h.id, h.name, h.status, u.role, u.status
+                ORDER BY h.name, u.role
+            `;
+
+            const result = await client.query(query);
+
+            // Group by hospital
+            const hospitalUserStats = result.rows.reduce((acc, row) => {
+                const hospitalId = row.hospital_id;
+                
+                if (!acc[hospitalId]) {
+                    acc[hospitalId] = {
+                        hospitalId: row.hospital_id,
+                        hospitalName: row.hospital_name,
+                        hospitalStatus: row.hospital_status,
+                        users: {}
+                    };
+                }
+
+                if (row.role) {
+                    if (!acc[hospitalId].users[row.role]) {
+                        acc[hospitalId].users[row.role] = { active: 0, inactive: 0, rejected: 0 };
+                    }
+                    acc[hospitalId].users[row.role][row.user_status] = parseInt(row.user_count);
+                }
+
+                return acc;
+            }, {} as Record<string, any>);
+
+            res.status(200).json({
+                success: true,
+                message: 'User statistics by hospital retrieved successfully',
+                data: Object.values(hospitalUserStats)
+            });
+
+        } catch (error) {
+            console.error('Error retrieving user stats by hospital:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while retrieving user statistics'
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Approve hospital and its admin user (Super Admin only)
+    static async approveHospital(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        
+        try {
+            // Start transaction
+            await client.query('BEGIN');
+            
+            const { hospitalId } = req.params;
+            const { approvedBy } = req.body; // Super admin user ID
+
+            // Check if hospital exists and is in 'inactive' status
+            const hospitalQuery = `
+                SELECT id, name, status, contact_email, contact_point_of_contact
+                FROM hospitals 
+                WHERE id = $1
+            `;
+
+            const hospitalResult = await client.query(hospitalQuery, [hospitalId]);
+
+            if (hospitalResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                res.status(404).json({
+                    success: false,
+                    message: 'Hospital not found'
+                });
+                return;
+            }
+
+            const hospital = hospitalResult.rows[0];
+
+            if (hospital.status === 'active') {
+                await client.query('ROLLBACK');
+                res.status(400).json({
+                    success: false,
+                    message: 'Hospital is already approved/active'
+                });
+                return;
+            }
+
+            if (hospital.status === 'suspended') {
+                await client.query('ROLLBACK');
+                res.status(400).json({
+                    success: false,
+                    message: 'Cannot approve suspended hospital. Please update status first.'
+                });
+                return;
+            }
+
+            // Update hospital status to active
+            const updateHospitalQuery = `
+                UPDATE hospitals 
+                SET status = 'active', 
+                    updated_at = CURRENT_TIMESTAMP,
+                    approved_by = $2,
+                    approved_date = CURRENT_TIMESTAMP
+                WHERE id = $1 
+                RETURNING id, name, status, updated_at
+            `;
+
+            const updatedHospital = await client.query(updateHospitalQuery, [hospitalId, approvedBy]);
+
+            // Find and approve the hospital admin user
+            const findAdminQuery = `
+                SELECT id, name, email, phone, status
+                FROM users 
+                WHERE hospital_id = $1 AND role = 'hospital_admin'
+            `;
+
+            const adminResult = await client.query(findAdminQuery, [hospitalId]);
+
+            if (adminResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                res.status(404).json({
+                    success: false,
+                    message: 'Hospital admin user not found'
+                });
+                return;
+            }
+
+            const adminUser = adminResult.rows[0];
+
+            // Update admin user status to active
+            const updateUserQuery = `
+                UPDATE users 
+                SET status = 'active', 
+                    updated_at = CURRENT_TIMESTAMP,
+                    approved_by = $2,
+                    approved_date = CURRENT_TIMESTAMP
+                WHERE id = $1 
+                RETURNING id, name, email, phone, status, updated_at
+            `;
+
+            const updatedUser = await client.query(updateUserQuery, [adminUser.id, approvedBy]);
+
+            // Commit transaction
+            await client.query('COMMIT');
+
+            res.status(200).json({
+                success: true,
+                message: 'Hospital and admin user approved successfully',
+                data: {
+                    hospital: {
+                        id: updatedHospital.rows[0].id,
+                        name: updatedHospital.rows[0].name,
+                        status: updatedHospital.rows[0].status,
+                        updatedAt: updatedHospital.rows[0].updated_at
+                    },
+                    adminUser: {
+                        id: updatedUser.rows[0].id,
+                        name: updatedUser.rows[0].name,
+                        email: updatedUser.rows[0].email,
+                        phone: updatedUser.rows[0].phone,
+                        status: updatedUser.rows[0].status,
+                        updatedAt: updatedUser.rows[0].updated_at
+                    }
+                }
+            });
+
+        } catch (error) {
+            // Rollback transaction on any error
+            await client.query('ROLLBACK');
+            console.error('Error approving hospital:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error during hospital approval. All changes have been rolled back.'
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Get pending hospitals for approval
+    static async getPendingHospitals(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        
+        try {
+            const { page, limit } = req.query;
+            
+            // Parse and validate pagination parameters
+            const pageNumber = parseInt(page as string) || 1;
+            const pageSize = parseInt(limit as string) || 10;
+            
+            // Validate pagination parameters
+            if (pageNumber < 1) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Page number must be greater than 0'
+                });
+                return;
+            }
+            
+            if (pageSize < 1 || pageSize > 100) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Limit must be between 1 and 100'
+                });
+                return;
+            }
+
+            const offset = (pageNumber - 1) * pageSize;
+            
+            const query = `
+                SELECT 
+                    h.id,
+                    h.name,
+                    h.license_number,
+                    h.gst_number,
+                    h.pan_number,
+                    h.address_street,
+                    h.address_city,
+                    h.address_state,
+                    h.address_country,
+                    h.contact_phone,
+                    h.contact_email,
+                    h.contact_point_of_contact,
+                    h.registration_date,
+                    u.id as admin_user_id,
+                    u.name as admin_name,
+                    u.email as admin_email,
+                    u.phone as admin_phone
+                FROM hospitals h
+                LEFT JOIN users u ON h.id = u.hospital_id AND u.role = 'hospital_admin'
+                WHERE h.status = 'inactive'
+                ORDER BY h.registration_date DESC
+                LIMIT $1 OFFSET $2
+            `;
+            
+            // Count query for total pending hospitals
+            const countQuery = `
+                SELECT COUNT(*) as total
+                FROM hospitals h
+                WHERE h.status = 'inactive'
+            `;
+
+            // Execute both queries
+            const [result, countResult] = await Promise.all([
+                client.query(query, [pageSize, offset]),
+                client.query(countQuery)
+            ]);
+            
+            const totalRecords = parseInt(countResult.rows[0].total);
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            
+            const pendingHospitals = result.rows.map(row => ({
+                hospital: {
+                    id: row.id,
+                    name: row.name,
+                    licenseNumber: row.license_number,
+                    gstNumber: row.gst_number,
+                    panNumber: row.pan_number,
+                    address: {
+                        street: row.address_street,
+                        city: row.address_city,
+                        state: row.address_state,
+                        country: row.address_country
+                    },
+                    contactInfo: {
+                        phone: row.contact_phone,
+                        email: row.contact_email,
+                        pointOfContact: row.contact_point_of_contact
+                    },
+                    registrationDate: row.registration_date
+                },
+                adminUser: {
+                    id: row.admin_user_id,
+                    name: row.admin_name,
+                    email: row.admin_email,
+                    phone: row.admin_phone
+                }
+            }));
+
+            res.status(200).json({
+                success: true,
+                message: 'Pending hospitals retrieved successfully',
+                data: pendingHospitals,
+                pagination: {
+                    currentPage: pageNumber,
+                    totalPages: totalPages,
+                    totalRecords: totalRecords,
+                    recordsPerPage: pageSize,
+                    hasNextPage: pageNumber < totalPages,
+                    hasPreviousPage: pageNumber > 1
+                },
+                count: pendingHospitals.length
+            });
+
+        } catch (error) {
+            console.error('Error retrieving pending hospitals:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while retrieving pending hospitals'
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Reject hospital application
+    static async rejectHospital(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        
+        try {
+            // Start transaction
+            await client.query('BEGIN');
+            
+            const { hospitalId } = req.params;
+            const { rejectedBy, reason } = req.body; // Super admin user ID and reason
+
+            // Check if hospital exists and is in 'inactive' status
+            const hospitalQuery = `
+                SELECT id, name, status
+                FROM hospitals 
+                WHERE id = $1
+            `;
+
+            const hospitalResult = await client.query(hospitalQuery, [hospitalId]);
+
+            if (hospitalResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                res.status(404).json({
+                    success: false,
+                    message: 'Hospital not found'
+                });
+                return;
+            }
+
+            const hospital = hospitalResult.rows[0];
+
+            if (hospital.status !== 'inactive') {
+                await client.query('ROLLBACK');
+                res.status(400).json({
+                    success: false,
+                    message: 'Can only reject hospitals with inactive status'
+                });
+                return;
+            }
+
+            // Update hospital status to rejected
+            const updateHospitalQuery = `
+                UPDATE hospitals 
+                SET status = 'rejected', 
+                    updated_at = CURRENT_TIMESTAMP,
+                    rejected_by = $2,
+                    rejected_date = CURRENT_TIMESTAMP,
+                    rejection_reason = $3
+                WHERE id = $1 
+                RETURNING id, name, status, updated_at
+            `;
+
+            const updatedHospital = await client.query(updateHospitalQuery, [hospitalId, rejectedBy, reason]);
+
+            // Update admin user status to rejected
+            const updateUserQuery = `
+                UPDATE users 
+                SET status = 'rejected', 
+                    updated_at = CURRENT_TIMESTAMP,
+                    rejected_by = $2,
+                    rejected_date = CURRENT_TIMESTAMP
+                WHERE hospital_id = $1 AND role = 'hospital_admin'
+                RETURNING id, name, email, status, updated_at
+            `;
+
+            const updatedUser = await client.query(updateUserQuery, [hospitalId, rejectedBy]);
+
+            // Commit transaction
+            await client.query('COMMIT');
+
+            res.status(200).json({
+                success: true,
+                message: 'Hospital application rejected successfully',
+                data: {
+                    hospital: updatedHospital.rows[0],
+                    adminUser: updatedUser.rows.length > 0 ? updatedUser.rows[0] : null,
+                    reason: reason
+                }
+            });
+
+        } catch (error) {
+            // Rollback transaction on any error
+            await client.query('ROLLBACK');
+            console.error('Error rejecting hospital:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error during hospital rejection. All changes have been rolled back.'
+            });
+        } finally {
+            client.release();
+        }
+    }
+}
