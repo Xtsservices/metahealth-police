@@ -1,4 +1,5 @@
 import pool from '../config/database';
+import { SchemaMigrationService } from './SchemaMigrationService';
 
 export class DatabaseInitService {
     
@@ -83,6 +84,17 @@ export class DatabaseInitService {
             throw error;
         } finally {
             client.release();
+        }
+
+        // Run schema migrations after basic table creation
+        try {
+            console.log('🔄 Running schema migrations...');
+            await SchemaMigrationService.runPendingMigrations();
+            console.log('✅ Schema migrations completed!');
+        } catch (error) {
+            console.error('❌ Schema migrations failed:', error);
+            // Don't throw here - basic tables are created, migrations can be run later
+            console.log('⚠️  Database is functional but migrations need attention');
         }
     }
 

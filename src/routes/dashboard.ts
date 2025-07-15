@@ -26,4 +26,7 @@ router.post('/approve-hospital',  DashboardController.approveHospital);
 // PUT /api/dashboard/reject-hospital/:hospitalId - Reject hospital application
 router.put('/reject-hospital/:hospitalId', DashboardController.rejectHospital);
 
+// GET /api/dashboard/database-status - Get database schema status and migration history
+router.get('/database-status', DashboardController.getDatabaseStatus);
+
 export default router;

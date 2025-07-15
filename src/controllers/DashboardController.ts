@@ -656,4 +656,112 @@ export class DashboardController {
             client.release();
         }
     }
+
+    // Get database schema status and migration history
+    static async getDatabaseStatus(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        
+        try {
+            // Check if migration table exists
+            const migrationTableCheck = await client.query(`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_name = 'schema_migrations'
+            `);
+            
+            const migrationTableExists = migrationTableCheck.rows.length > 0;
+            let migrationHistory: any[] = [];
+            
+            if (migrationTableExists) {
+                const historyResult = await client.query(`
+                    SELECT version, description, executed_at, status
+                    FROM schema_migrations
+                    ORDER BY executed_at DESC
+                `);
+                migrationHistory = historyResult.rows;
+            }
+            
+            // Check key schema elements
+            const schemaCheck = await client.query(`
+                SELECT table_name, column_name 
+                FROM information_schema.columns 
+                WHERE table_name IN ('hospitals', 'users', 'patients', 'appointment_documents')
+                AND column_name IN ('approval_status', 'is_active', 'address_city', 'gst_number', 'file_data')
+                ORDER BY table_name, column_name
+            `);
+            
+            // Get table counts
+            const tableCountsQuery = `
+                SELECT 
+                    'hospitals' as table_name, COUNT(*) as count FROM hospitals
+                UNION ALL
+                SELECT 'users' as table_name, COUNT(*) as count FROM users
+                UNION ALL
+                SELECT 'patients' as table_name, COUNT(*) as count FROM patients
+                UNION ALL
+                SELECT 'appointments' as table_name, COUNT(*) as count FROM appointments
+                UNION ALL
+                SELECT 'appointment_documents' as table_name, COUNT(*) as count FROM appointment_documents
+            `;
+            
+            const tableCounts = await client.query(tableCountsQuery);
+            
+            // Expected key columns
+            const expectedColumns = [
+                { table: 'hospitals', column: 'approval_status' },
+                { table: 'hospitals', column: 'gst_number' },
+                { table: 'users', column: 'is_active' },
+                { table: 'users', column: 'approval_status' },
+                { table: 'patients', column: 'address_city' },
+                { table: 'appointment_documents', column: 'file_data' }
+            ];
+            
+            const schemaStatus = expectedColumns.map(expected => {
+                const exists = schemaCheck.rows.some(row => 
+                    row.table_name === expected.table && row.column_name === expected.column
+                );
+                return {
+                    table: expected.table,
+                    column: expected.column,
+                    exists
+                };
+            });
+            
+            const allSchemaUpdated = schemaStatus.every(item => item.exists);
+            
+            res.status(200).json({
+                success: true,
+                message: 'Database status retrieved successfully',
+                data: {
+                    migrationSystem: {
+                        trackingTableExists: migrationTableExists,
+                        migrationsApplied: migrationHistory.length,
+                        lastMigration: migrationHistory.length > 0 ? migrationHistory[0] : null
+                    },
+                    schema: {
+                        allRequiredColumnsExist: allSchemaUpdated,
+                        columnStatus: schemaStatus,
+                        missingColumns: schemaStatus.filter(item => !item.exists)
+                    },
+                    tables: {
+                        counts: tableCounts.rows.reduce((acc, row) => {
+                            acc[row.table_name] = parseInt(row.count);
+                            return acc;
+                        }, {} as Record<string, number>),
+                        totalRecords: tableCounts.rows.reduce((sum, row) => sum + parseInt(row.count), 0)
+                    },
+                    migrationHistory: migrationHistory
+                }
+            });
+
+        } catch (error) {
+            console.error('Error retrieving database status:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while retrieving database status'
+            });
+        } finally {
+            client.release();
+        }
+    }
 }

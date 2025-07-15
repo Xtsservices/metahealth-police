@@ -10,9 +10,10 @@
     "watch": "tsc -w",
     "clean": "rimraf dist",
     "db:setup": "ts-node database/setup.ts",
-    "db:migrate": "psql -U postgres -d metahealth_police -f database/migrations/001_create_hospitals_table.sql",
+    "db:migrate": "node run-migrations.js",
     "db:reset": "npm run build && node reset-database.js",
-    "db:status": "curl -s http://localhost:3100/api/database/status | jq ."
+    "db:status": "node check-schema.js",
+    "db:demo": "node demo-schema-sync.js"
   },
   "keywords": [],
   "author": "",
