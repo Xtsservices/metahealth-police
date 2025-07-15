@@ -22,4 +22,5 @@ router.post('/:id/cancel', AppointmentController.cancelAppointment);
 // GET /api/appointments/patient/:patientId - Get patient's appointments
 router.get('/patient/:patientId', AppointmentController.getPatientAppointments);
 
+
 export default router;

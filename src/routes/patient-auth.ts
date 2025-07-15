@@ -18,4 +18,12 @@ router.post('/logout', PatientAuthController.logoutPatient);
 // GET /api/patient-auth/validate-session - Validate patient session token
 router.get('/validate-session', PatientAuthController.validatePatientSession);
 
+// GET /api/patient-auth/myProfile - Get patient profile
+router.get('/myProfile', PatientAuthController.myProfile);  
+
+
+router.get('/myAppointments', PatientAuthController.myAppointments);  
+
+
+
 export default router;

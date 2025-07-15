@@ -761,4 +761,6 @@ export class AppointmentController {
             client.release();
         }
     }
+
+
 }

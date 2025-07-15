@@ -3,6 +3,73 @@ import pool from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export class PatientAuthController {
+   static async myProfile(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        try {
+            const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                res.status(401).json({
+                    success: false,
+                    message: 'Authorization header with token required'
+                });
+                return;
+            }
+            const token = authHeader;
+
+            // Validate session and get patient info
+            const sessionQuery = `
+                SELECT 
+                    s.patient_id,
+                    s.expires_at,
+                    p.id,
+                    p.name,
+                    p.mobile,
+                    p.status,
+                    p.gender,
+                    p.date_of_birth,
+                    p.police_id_no,
+                    p.created_date,
+                    p.registration_date
+                FROM patient_sessions s
+                JOIN patients p ON s.patient_id = p.id
+                WHERE s.token_hash = $1 
+                  AND s.expires_at > CURRENT_TIMESTAMP
+                  AND p.status = 'active'
+            `;
+            const result = await client.query(sessionQuery, [token]);
+            if (result.rows.length === 0) {
+                res.status(401).json({
+                    success: false,
+                    message: 'Invalid or expired session token'
+                });
+                return;
+            }
+            const patient = result.rows[0];
+            res.status(200).json({
+                success: true,
+                message: 'Patient profile fetched successfully',
+                data: {
+                    id: patient.id,
+                    name: patient.name,
+                    mobile: patient.mobile,
+                    status: patient.status,
+                    gender: patient.gender,
+                    dateOfBirth: patient.date_of_birth,
+                    policeIdNo: patient.police_id_no,
+                    createdDate: patient.created_date,
+                    registrationDate: patient.registration_date
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching patient profile:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while fetching profile'
+            });
+        } finally {
+            client.release();
+        }
+    }
     // Generate OTP for patient mobile login
     static async generatePatientOTP(req: Request, res: Response): Promise<void> {
         const client = await pool.connect();
@@ -63,11 +130,11 @@ export class PatientAuthController {
             const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
             // Delete any existing OTPs for this patient
-            await client.query('DELETE FROM otps WHERE phone = $1', [cleanMobile]);
+            await client.query('DELETE FROM patient_otp WHERE mobile = $1', [cleanMobile]);
 
             // Insert new OTP
             const insertOTPQuery = `
-                INSERT INTO otps (phone, otp, expires_at, created_at) 
+                INSERT INTO patient_otp (mobile, otp, expires_at, created_at) 
                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
             `;
 
@@ -125,9 +192,9 @@ export class PatientAuthController {
 
             // Verify OTP
             const otpQuery = `
-                SELECT phone, otp, expires_at 
-                FROM otps 
-                WHERE phone = $1 AND otp = $2 AND expires_at > CURRENT_TIMESTAMP
+                SELECT mobile, otp, expires_at 
+                FROM patient_otp 
+                WHERE mobile = $1 AND otp = $2 AND expires_at > CURRENT_TIMESTAMP
             `;
 
             const otpResult = await client.query(otpQuery, [cleanMobile, cleanOTP]);
@@ -164,24 +231,21 @@ export class PatientAuthController {
             const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
 
             // Delete any existing sessions for this patient
-            await client.query('DELETE FROM sessions WHERE user_id = $1', [patient.id]);
+           // Delete any existing sessions for this patient
+await client.query('DELETE FROM patient_sessions WHERE patient_id = $1', [patient.id]);
 
-            // Create new session (reusing the sessions table with user_id as patient_id)
-            const insertSessionQuery = `
-                INSERT INTO sessions (id, user_id, token, expires_at, created_at) 
-                VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-            `;
+// Create new session (reusing the sessions table with patient_id)
+const insertSessionQuery = `
+    INSERT INTO patient_sessions (id, patient_id, token_hash, expires_at, created_at) 
+    VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+`;
 
-            await client.query(insertSessionQuery, [uuidv4(), patient.id, sessionToken, expiresAt]);
-
+await client.query(insertSessionQuery, [uuidv4(), patient.id, sessionToken, expiresAt]);
             // Update patient's last login
-            await client.query(
-                'UPDATE patients SET last_login = CURRENT_TIMESTAMP WHERE id = $1', 
-                [patient.id]
-            );
+         
 
             // Delete used OTP
-            await client.query('DELETE FROM otps WHERE phone = $1', [cleanMobile]);
+            await client.query('DELETE FROM patient_otp WHERE mobile = $1', [cleanMobile]);
 
             res.status(200).json({
                 success: true,
@@ -399,6 +463,95 @@ export class PatientAuthController {
                 success: false,
                 message: 'Internal server error while checking mobile'
             });
+        }
+    }
+
+    // Get patient appointments
+    static async myAppointments(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        try {
+            const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                res.status(401).json({
+                    success: false,
+                    message: 'Authorization header with token required'
+                });
+                return;
+            }
+            const token = authHeader;
+
+            // Validate session and get patient info
+            const sessionQuery = `
+                SELECT 
+                    s.patient_id,
+                    s.expires_at
+                FROM patient_sessions s
+                WHERE s.token_hash = $1 
+                  AND s.expires_at > CURRENT_TIMESTAMP
+            `;
+            const sessionResult = await client.query(sessionQuery, [token]);
+            if (sessionResult.rows.length === 0) {
+                res.status(401).json({
+                    success: false,
+                    message: 'Invalid or expired session token'
+                });
+                return;
+            }
+
+            const patientId = sessionResult.rows[0].patient_id;
+
+            // Get appointments for the patient
+            const appointmentsQuery = `
+                SELECT 
+                    a.id,
+                    a.appointment_date,
+                    a.appointment_time,
+                    a.status,
+                    a.notes,
+                    a.created_date,
+                    h.name as hospital_name
+                FROM appointments a
+                LEFT JOIN hospitals h ON a.hospital_id = h.id
+                WHERE a.patient_id = $1
+                ORDER BY a.appointment_date DESC, a.appointment_time DESC
+            `;
+            
+            const appointmentsResult = await client.query(appointmentsQuery, [patientId]);
+
+            const appointments = appointmentsResult.rows.map(appointment => ({
+                id: appointment.id,
+                appointmentDate: appointment.appointment_date,
+                appointmentTime: appointment.appointment_time,
+                status: appointment.status,
+                notes: appointment.notes,
+                createdAt: appointment.created_at,
+                doctor: {
+                    name: appointment.doctor_name,
+                    specialization: appointment.specialization
+                },
+                hospital: {
+                    name: appointment.hospital_name,
+                    address: appointment.hospital_address
+                }
+            }));
+
+            res.status(200).json({
+                success: true,
+                message: 'Appointments fetched successfully',
+                data: {
+                    appointments: appointments,
+                    total: appointments.length
+                }
+            });
+
+        } catch (error) {
+            console.error('Error fetching patient appointments:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while fetching appointments'
+            });
+        } finally {
+            client.release();
         }
     }
 }
