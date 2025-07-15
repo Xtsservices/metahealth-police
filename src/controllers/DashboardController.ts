@@ -58,6 +58,44 @@ export class DashboardController {
 
             const recentUsers = await client.query(recentUsersQuery);
 
+            // Get total patients count
+            const totalPatientsQuery = `SELECT COUNT(*) as total FROM patients`;
+            const totalPatients = await client.query(totalPatientsQuery);
+
+            // Get recent patients (last 30 days)
+            const recentPatientsQuery = `
+                SELECT COUNT(*) as count 
+                FROM patients 
+                WHERE created_date >= NOW() - INTERVAL '30 days'
+            `;
+
+            const recentPatients = await client.query(recentPatientsQuery);
+
+            // Get total appointments count
+            const totalAppointmentsQuery = `SELECT COUNT(*) as total FROM appointments`;
+            const totalAppointments = await client.query(totalAppointmentsQuery);
+
+            // Get appointment counts by status
+            const appointmentStatsQuery = `
+                SELECT 
+                    status,
+                    COUNT(*) as count
+                FROM appointments 
+                GROUP BY status
+                ORDER BY status
+            `;
+
+            const appointmentStats = await client.query(appointmentStatsQuery);
+
+            // Get recent appointments (last 30 days)
+            const recentAppointmentsQuery = `
+                SELECT COUNT(*) as count 
+                FROM appointments 
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+            `;
+
+            const recentAppointments = await client.query(recentAppointmentsQuery);
+
             // Format hospital statistics
             const hospitalStatusCounts = {
                 active: 0,
@@ -81,6 +119,20 @@ export class DashboardController {
                 return acc;
             }, {} as Record<string, Record<string, number>>);
 
+            // Format appointment statistics
+            const appointmentStatusCounts = {
+                scheduled: 0,
+                completed: 0,
+                cancelled: 0,
+                pending: 0
+            };
+
+            appointmentStats.rows.forEach(row => {
+                if (appointmentStatusCounts.hasOwnProperty(row.status)) {
+                    appointmentStatusCounts[row.status as keyof typeof appointmentStatusCounts] = parseInt(row.count);
+                }
+            });
+
             res.status(200).json({
                 success: true,
                 message: 'Dashboard statistics retrieved successfully',
@@ -95,13 +147,28 @@ export class DashboardController {
                         byRoleAndStatus: userStatistics,
                         recentRegistrations: parseInt(recentUsers.rows[0].count)
                     },
+                    patients: {
+                        total: parseInt(totalPatients.rows[0].total),
+                        recentRegistrations: parseInt(recentPatients.rows[0].count)
+                    },
+                    appointments: {
+                        total: parseInt(totalAppointments.rows[0].total),
+                        statusCounts: appointmentStatusCounts,
+                        recentAppointments: parseInt(recentAppointments.rows[0].count),
+                        completed: appointmentStatusCounts.completed,
+                        scheduled: appointmentStatusCounts.scheduled
+                    },
                     summary: {
                         totalHospitals: parseInt(totalHospitals.rows[0].total),
                         activeHospitals: hospitalStatusCounts.active,
                         inactiveHospitals: hospitalStatusCounts.inactive,
                         suspendedHospitals: hospitalStatusCounts.suspended,
                         rejectedHospitals: hospitalStatusCounts.rejected,
-                        totalUsers: parseInt(totalUsers.rows[0].total)
+                        totalUsers: parseInt(totalUsers.rows[0].total),
+                        totalPatients: parseInt(totalPatients.rows[0].total),
+                        totalAppointments: parseInt(totalAppointments.rows[0].total),
+                        completedAppointments: appointmentStatusCounts.completed,
+                        scheduledAppointments: appointmentStatusCounts.scheduled
                     }
                 }
             });
