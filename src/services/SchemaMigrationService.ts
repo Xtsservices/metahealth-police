@@ -16,12 +16,10 @@ export class SchemaMigrationService {
         try {
             const createMigrationTable = `
                 CREATE TABLE IF NOT EXISTS schema_migrations (
-                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                    version VARCHAR(50) NOT NULL UNIQUE,
+                    id SERIAL PRIMARY KEY,
+                    version VARCHAR(255) NOT NULL UNIQUE,
                     description TEXT NOT NULL,
                     executed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    execution_time_ms INTEGER,
-                    rollback_sql TEXT,
                     status VARCHAR(20) NOT NULL DEFAULT 'completed' CHECK (status IN ('completed', 'failed', 'rolled_back'))
                 );
             `;
@@ -78,9 +76,9 @@ export class SchemaMigrationService {
             
             // Record migration
             await client.query(`
-                INSERT INTO schema_migrations (version, description, execution_time_ms, rollback_sql, status)
-                VALUES ($1, $2, $3, $4, 'completed')
-            `, [migration.version, migration.description, executionTime, migration.rollback || null]);
+                INSERT INTO schema_migrations (version, description, status)
+                VALUES ($1, $2, 'completed')
+            `, [migration.version, migration.description]);
             
             await client.query('COMMIT');
             console.log(`✅ Applied migration ${migration.version}: ${migration.description} (${executionTime}ms)`);
@@ -210,7 +208,26 @@ export class SchemaMigrationService {
             `
         },
         {
-            version: '2025.01.02_user_active_status',
+            version: '2025.01.03_user_status_column',
+            description: 'Add status field to users table',
+            sql: `
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'inactive';
+                
+                ALTER TABLE users 
+                ADD CONSTRAINT IF NOT EXISTS users_status_check 
+                CHECK (status IN ('active', 'inactive', 'suspended'));
+                
+                CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+            `,
+            rollback: `
+                DROP INDEX IF EXISTS idx_users_status;
+                ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+                ALTER TABLE users DROP COLUMN IF EXISTS status;
+            `
+        },
+        {
+            version: '2025.01.07_user_active_status',
             description: 'Add is_active field to users table',
             sql: `
                 ALTER TABLE users 
@@ -224,7 +241,7 @@ export class SchemaMigrationService {
             `
         },
         {
-            version: '2025.01.03_patient_address_fields',
+            version: '2025.01.04_patient_address_fields',
             description: 'Add address fields to patients table',
             sql: `
                 ALTER TABLE patients 
@@ -247,7 +264,7 @@ export class SchemaMigrationService {
             `
         },
         {
-            version: '2025.01.04_hospital_business_fields',
+            version: '2025.01.05_hospital_business_fields',
             description: 'Add business information fields to hospitals table',
             sql: `
                 ALTER TABLE hospitals 
@@ -268,7 +285,7 @@ export class SchemaMigrationService {
             `
         },
         {
-            version: '2025.01.05_appointment_documents_base64',
+            version: '2025.01.06_appointment_documents_base64',
             description: 'Add base64 storage support to appointment_documents',
             sql: `
                 ALTER TABLE appointment_documents 

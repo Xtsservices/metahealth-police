@@ -48,6 +48,21 @@ async function checkSchema() {
             console.log(`   ${row.column_name} (${row.data_type}${nullable}${defaultVal})`);
         });
         
+        // Check schema_migrations table structure
+        console.log('\n🔍 schema_migrations Table Structure:');
+        const migrationColumns = await client.query(`
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_name = 'schema_migrations'
+            ORDER BY ordinal_position
+        `);
+        
+        migrationColumns.rows.forEach(row => {
+            const nullable = row.is_nullable === 'NO' ? ' NOT NULL' : '';
+            const defaultVal = row.column_default ? ` DEFAULT ${row.column_default}` : '';
+            console.log(`   ${row.column_name} (${row.data_type}${nullable}${defaultVal})`);
+        });
+        
         // Check for newly added columns
         console.log('\n🔄 Schema Sync Status:');
         const newColumns = [
@@ -56,6 +71,7 @@ async function checkSchema() {
             { table: 'hospitals', column: 'gst_number' },
             { table: 'users', column: 'is_active' },
             { table: 'users', column: 'approval_status' },
+            { table: 'users', column: 'status' },
             { table: 'patients', column: 'address_city' },
             { table: 'patients', column: 'address_state' }
         ];

@@ -44,7 +44,18 @@ async function runMigrations() {
                 `
             },
             {
-                version: '2025.01.02_user_active_status',
+                version: '2025.01.02_user_status_field',
+                description: 'Add status field to users table',
+                check: `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'status'`,
+                sql: `
+                    ALTER TABLE users 
+                    ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'inactive';
+                    
+                    CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+                `
+            },
+            {
+                version: '2025.01.03_user_active_status',
                 description: 'Add is_active field to users table',
                 check: `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_active'`,
                 sql: `
@@ -55,7 +66,7 @@ async function runMigrations() {
                 `
             },
             {
-                version: '2025.01.03_patient_address_fields',
+                version: '2025.01.04_patient_address_fields',
                 description: 'Add address fields to patients table',
                 check: `SELECT column_name FROM information_schema.columns WHERE table_name = 'patients' AND column_name = 'address_city'`,
                 sql: `
@@ -70,7 +81,7 @@ async function runMigrations() {
                 `
             },
             {
-                version: '2025.01.04_hospital_business_fields', 
+                version: '2025.01.05_hospital_business_fields', 
                 description: 'Add business information fields to hospitals table',
                 check: `SELECT column_name FROM information_schema.columns WHERE table_name = 'hospitals' AND column_name = 'gst_number'`,
                 sql: `
@@ -83,7 +94,7 @@ async function runMigrations() {
                 `
             },
             {
-                version: '2025.01.05_appointment_documents_base64',
+                version: '2025.01.06_appointment_documents_base64',
                 description: 'Add base64 storage support to appointment_documents',
                 check: `SELECT column_name FROM information_schema.columns WHERE table_name = 'appointment_documents' AND column_name = 'file_data'`,
                 sql: `

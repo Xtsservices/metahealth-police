@@ -247,7 +247,8 @@ export class DatabaseInitService {
                 phone VARCHAR(20) NOT NULL UNIQUE,
                 role VARCHAR(50) NOT NULL CHECK (role IN ('super_admin', 'hospital_admin')),
                 
-                -- Admin fields
+                -- Status fields
+                status VARCHAR(20) NOT NULL DEFAULT 'inactive' CHECK (status IN ('active', 'inactive', 'suspended')),
                 is_active BOOLEAN NOT NULL DEFAULT true,
                 
                 -- Approval tracking
@@ -280,6 +281,7 @@ export class DatabaseInitService {
         // Add missing columns if they don't exist (for existing tables)
         try {
             const addColumnsQueries = [
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT \'inactive\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT \'pending\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by UUID',
@@ -302,6 +304,19 @@ export class DatabaseInitService {
                 BEGIN
                     IF NOT EXISTS (
                         SELECT 1 FROM pg_constraint 
+                        WHERE conname = 'users_status_check'
+                    ) THEN
+                        ALTER TABLE users ADD CONSTRAINT users_status_check 
+                        CHECK (status IN ('active', 'inactive', 'suspended'));
+                    END IF;
+                END $$;
+            `);
+            
+            await client.query(`
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint 
                         WHERE conname = 'users_approval_status_check'
                     ) THEN
                         ALTER TABLE users ADD CONSTRAINT users_approval_status_check 
@@ -310,7 +325,7 @@ export class DatabaseInitService {
                 END $$;
             `);
         } catch (error) {
-            console.log('ℹ️  Users approval status constraint might already exist');
+            console.log('ℹ️  Users constraints might already exist');
         }
 
         // Create indexes with individual error handling
@@ -334,7 +349,7 @@ export class DatabaseInitService {
             const columnCheck = await client.query(`
                 SELECT column_name 
                 FROM information_schema.columns 
-                WHERE table_name = 'users' AND column_name IN ('approval_status', 'is_active')
+                WHERE table_name = 'users' AND column_name IN ('approval_status', 'is_active', 'status')
             `);
             
             const existingColumns = columnCheck.rows.map((row: any) => row.column_name);
@@ -347,6 +362,11 @@ export class DatabaseInitService {
             if (existingColumns.includes('is_active')) {
                 await client.query('CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)');
                 console.log('✅ Users is_active index created');
+            }
+            
+            if (existingColumns.includes('status')) {
+                await client.query('CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)');
+                console.log('✅ Users status index created');
             }
         } catch (error) {
             console.log('ℹ️  Users conditional index creation skipped');
