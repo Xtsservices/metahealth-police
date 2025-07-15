@@ -1,3 +1,4 @@
+
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
@@ -104,6 +105,9 @@ export class AuthController {
             client.release();
         }
     }
+
+
+    
 
     // Verify OTP and login
     static async verifyOTPAndLogin(req: Request, res: Response): Promise<void> {
@@ -231,6 +235,73 @@ export class AuthController {
                 success: false,
                 message: 'Internal server error while verifying OTP'
             });
+        } finally {
+            client.release();
+        }
+    }
+
+        // Get current user's profile based on session token
+    static async myProfile(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+
+         const reqAny = req as any;
+        console.log('Retrieving profile for user:', reqAny.user);
+        try {
+            // Accept token from query, header, or body
+            const token = req.headers['authorization'];
+           
+            if (!token) {
+                res.status(400).json({ success: false, message: 'Session token is required' });
+                return;
+            }
+
+            // Get session info
+            const sessionQuery = `SELECT user_id FROM admin_sessions WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP`;
+            const sessionResult = await client.query(sessionQuery, [token]);
+            if (sessionResult.rows.length === 0) {
+                res.status(401).json({ success: false, message: 'Invalid or expired session' });
+                return;
+            }
+            const userId = sessionResult.rows[0].user_id;
+
+            // Get user info directly from users table
+            const userQuery = `SELECT id, name, phone, email, role, status, hospital_id FROM users WHERE id = $1`;
+            const userResult = await client.query(userQuery, [userId]);
+            if (userResult.rows.length === 0) {
+                res.status(404).json({ success: false, message: 'User not found' });
+                return;
+            }
+            const user = userResult.rows[0];
+
+            // Get hospital info if available
+            let hospitalInfo = null;
+            if (user.hospital_id) {
+                const hospitalQuery = `SELECT id, name, license_number, status FROM hospitals WHERE id = $1`;
+                const hospitalResult = await client.query(hospitalQuery, [user.hospital_id]);
+                if (hospitalResult.rows.length > 0) {
+                    hospitalInfo = hospitalResult.rows[0];
+                }
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Profile retrieved successfully',
+                data: {
+                    user: {
+                        id: user.id,
+                        name: user.name,
+                        phone: user.phone,
+                        email: user.email,
+                        role: user.role,
+                        status: user.status,
+                        hospitalId: user.hospital_id
+                    },
+                    hospital: hospitalInfo
+                }
+            });
+        } catch (error) {
+            console.error('Error retrieving profile:', error);
+            res.status(500).json({ success: false, message: 'Internal server error while retrieving profile' });
         } finally {
             client.release();
         }

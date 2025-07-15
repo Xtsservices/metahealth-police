@@ -19,4 +19,7 @@ router.post('/logout', validateLogout, AuthController.logout);
 // GET /api/auth/validate-session - Validate session token
 router.get('/validate-session', AuthController.validateSession);
 
+router.get('/myProfile',  AuthController.myProfile);
+
+
 export default router;
