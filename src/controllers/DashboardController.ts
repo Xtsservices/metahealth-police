@@ -5,133 +5,84 @@ export class DashboardController {
     // Get dashboard statistics for super admin
     static async getDashboardStats(req: Request, res: Response): Promise<void> {
         const client = await pool.connect();
-        
+        const reqAny = req as any;
         try {
-            // Get hospital counts by status
-            const hospitalStatsQuery = `
-                SELECT 
-                    status,
-                    COUNT(*) as count
-                FROM hospitals 
-                GROUP BY status
-                ORDER BY status
-            `;
-
-            const hospitalStats = await client.query(hospitalStatsQuery);
-
-            // Get total hospitals count
-            const totalHospitalsQuery = `SELECT COUNT(*) as total FROM hospitals`;
-            const totalHospitals = await client.query(totalHospitalsQuery);
-
-            // Get user counts by role and status
-            const userStatsQuery = `
-                SELECT 
-                    role,
-                    status,
-                    COUNT(*) as count
-                FROM users 
-                GROUP BY role, status
-                ORDER BY role, status
-            `;
-
-            const userStats = await client.query(userStatsQuery);
-
-            // Get total users count
-            const totalUsersQuery = `SELECT COUNT(*) as total FROM users`;
-            const totalUsers = await client.query(totalUsersQuery);
-
-            // Get recent registrations (last 30 days)
-            const recentHospitalsQuery = `
-                SELECT COUNT(*) as count 
-                FROM hospitals 
-                WHERE registration_date >= NOW() - INTERVAL '30 days'
-            `;
-
-            const recentHospitals = await client.query(recentHospitalsQuery);
-
-            // Get recent users (last 30 days)
-            const recentUsersQuery = `
-                SELECT COUNT(*) as count 
-                FROM users 
-                WHERE created_date >= NOW() - INTERVAL '30 days'
-            `;
-
-            const recentUsers = await client.query(recentUsersQuery);
-
-            // Get total patients count
-            const totalPatientsQuery = `SELECT COUNT(*) as total FROM patients`;
-            const totalPatients = await client.query(totalPatientsQuery);
-
-            // Get recent patients (last 30 days)
-            const recentPatientsQuery = `
-                SELECT COUNT(*) as count 
-                FROM patients 
-                WHERE registration_date >= NOW() - INTERVAL '30 days'
-            `;
-
-            const recentPatients = await client.query(recentPatientsQuery);
-
-            // Get total appointments count
-            const totalAppointmentsQuery = `SELECT COUNT(*) as total FROM appointments`;
-            const totalAppointments = await client.query(totalAppointmentsQuery);
-
-            // Get appointment counts by status
-            const appointmentStatsQuery = `
-                SELECT 
-                    status,
-                    COUNT(*) as count
-                FROM appointments 
-                GROUP BY status
-                ORDER BY status
-            `;
-
-            const appointmentStats = await client.query(appointmentStatsQuery);
-
-            // Get recent appointments (last 30 days)
-            const recentAppointmentsQuery = `
-                SELECT COUNT(*) as count 
-                FROM appointments 
-                WHERE created_date >= NOW() - INTERVAL '30 days'
-            `;
-
-            const recentAppointments = await client.query(recentAppointmentsQuery);
-
-            // Format hospital statistics
-            const hospitalStatusCounts = {
-                active: 0,
-                inactive: 0,
-                suspended: 0,
-                rejected: 0
-            };
-
-            hospitalStats.rows.forEach(row => {
-                if (hospitalStatusCounts.hasOwnProperty(row.status)) {
-                    hospitalStatusCounts[row.status as keyof typeof hospitalStatusCounts] = parseInt(row.count);
-                }
-            });
-
-            // Format user statistics
-            const userStatistics = userStats.rows.reduce((acc, row) => {
-                if (!acc[row.role]) {
-                    acc[row.role] = { active: 0, inactive: 0, rejected: 0 };
-                }
-                acc[row.role][row.status] = parseInt(row.count);
-                return acc;
-            }, {} as Record<string, Record<string, number>>);
+            // Appointments queries, filter by hospital_id if present
+            let appointmentWhere = '';
+            let appointmentParams: any[] = [];
+            if (reqAny.user && reqAny.user.hospital_id) {
+                appointmentWhere = ' WHERE hospital_id = $1';
+                appointmentParams = [reqAny.user.hospital_id];
+            }
+            const totalAppointmentsQuery = `SELECT COUNT(*) as total FROM appointments${appointmentWhere}`;
+            const totalAppointments = await client.query(totalAppointmentsQuery, appointmentParams);
+            const appointmentStatsQuery = `SELECT status, COUNT(*) as count FROM appointments${appointmentWhere} GROUP BY status ORDER BY status`;
+            const appointmentStats = await client.query(appointmentStatsQuery, appointmentParams);
+            const recentAppointmentsQuery = `SELECT COUNT(*) as count FROM appointments${appointmentWhere}${appointmentWhere ? ' AND' : ' WHERE'} created_date >= NOW() - INTERVAL '30 days'`;
+            const recentAppointments = await client.query(recentAppointmentsQuery, appointmentParams);
 
             // Format appointment statistics
-            const appointmentStatusCounts = {
-                scheduled: 0,
-                completed: 0,
-                cancelled: 0,
-                pending: 0
-            };
-
+            const appointmentStatusCounts = { scheduled: 0, completed: 0, cancelled: 0, pending: 0 };
             appointmentStats.rows.forEach(row => {
                 if (appointmentStatusCounts.hasOwnProperty(row.status)) {
                     appointmentStatusCounts[row.status as keyof typeof appointmentStatusCounts] = parseInt(row.count);
                 }
             });
+
+            if (reqAny.user && reqAny.user.role === 'hospital_admin') {
+                // Only send appointments data for hospital_admin
+                res.status(200).json({
+                    success: true,
+                    message: 'Dashboard statistics retrieved successfully',
+                    data: {
+                        appointments: {
+                            total: parseInt(totalAppointments.rows[0].total),
+                            statusCounts: appointmentStatusCounts,
+                            recentAppointments: parseInt(recentAppointments.rows[0].count),
+                            completed: appointmentStatusCounts.completed,
+                            scheduled: appointmentStatusCounts.scheduled
+                        },
+                        summary: {
+                            totalAppointments: parseInt(totalAppointments.rows[0].total),
+                            completedAppointments: appointmentStatusCounts.completed,
+                            scheduledAppointments: appointmentStatusCounts.scheduled
+                        }
+                    }
+                });
+                return;
+            }
+
+            // ...existing code for hospital/user/patient stats...
+            const hospitalStatsQuery = `SELECT status, COUNT(*) as count FROM hospitals GROUP BY status ORDER BY status`;
+            const hospitalStats = await client.query(hospitalStatsQuery);
+            const totalHospitalsQuery = `SELECT COUNT(*) as total FROM hospitals`;
+            const totalHospitals = await client.query(totalHospitalsQuery);
+            const userStatsQuery = `SELECT role, status, COUNT(*) as count FROM users GROUP BY role, status ORDER BY role, status`;
+            const userStats = await client.query(userStatsQuery);
+            const totalUsersQuery = `SELECT COUNT(*) as total FROM users`;
+            const totalUsers = await client.query(totalUsersQuery);
+            const recentHospitalsQuery = `SELECT COUNT(*) as count FROM hospitals WHERE registration_date >= NOW() - INTERVAL '30 days'`;
+            const recentHospitals = await client.query(recentHospitalsQuery);
+            const recentUsersQuery = `SELECT COUNT(*) as count FROM users WHERE created_date >= NOW() - INTERVAL '30 days'`;
+            const recentUsers = await client.query(recentUsersQuery);
+            const totalPatientsQuery = `SELECT COUNT(*) as total FROM patients`;
+            const totalPatients = await client.query(totalPatientsQuery);
+            const recentPatientsQuery = `SELECT COUNT(*) as count FROM patients WHERE registration_date >= NOW() - INTERVAL '30 days'`;
+            const recentPatients = await client.query(recentPatientsQuery);
+
+            // Format hospital statistics
+            const hospitalStatusCounts = { active: 0, inactive: 0, suspended: 0, rejected: 0 };
+            hospitalStats.rows.forEach(row => {
+                if (hospitalStatusCounts.hasOwnProperty(row.status)) {
+                    hospitalStatusCounts[row.status as keyof typeof hospitalStatusCounts] = parseInt(row.count);
+                }
+            });
+            // Format user statistics
+            const userStatistics = userStats.rows.reduce((acc, row) => {
+                if (!acc[row.role]) { acc[row.role] = { active: 0, inactive: 0, rejected: 0 }; }
+                acc[row.role][row.status] = parseInt(row.count);
+                return acc;
+            }, {} as Record<string, Record<string, number>>);
 
             res.status(200).json({
                 success: true,
@@ -172,12 +123,11 @@ export class DashboardController {
                     }
                 }
             });
-
         } catch (error) {
             console.error('Error retrieving dashboard statistics:', error);
             res.status(500).json({
                 success: false,
-        message: 'Internal server error while rdashboard statistics'
+                message: 'Internal server error while retrieving dashboard statistics'
             });
         } finally {
             client.release();

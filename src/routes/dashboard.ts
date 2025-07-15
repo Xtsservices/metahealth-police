@@ -6,7 +6,7 @@ const router = Router();
 
 // Apply token validation to all dashboard routes
 router.use(validateToken);
-router.use(requireSuperAdmin);
+// router.use(requireSuperAdmin);
 
 // GET /api/dashboard/stats - Get overall dashboard statistics
 router.get('/stats', DashboardController.getDashboardStats);
