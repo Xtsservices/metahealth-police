@@ -29,4 +29,9 @@ router.put('/reject-hospital/:hospitalId', DashboardController.rejectHospital);
 // GET /api/dashboard/database-status - Get database schema status and migration history
 router.get('/database-status', DashboardController.getDatabaseStatus);
 
+router.get('/getPatientsList', DashboardController.getPatientsList);
+
+router.get('/getAppointmentsWithDetails', DashboardController.getAppointmentsWithDetails);
+
+
 export default router;

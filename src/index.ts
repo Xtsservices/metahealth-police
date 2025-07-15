@@ -14,6 +14,7 @@ import databaseRoutes from './routes/database.routes';
 import { testConnection } from './config/database';
 import { DefaultUserService } from './services/DefaultUserService';
 import { DatabaseInitService } from './services/DatabaseInitService';
+import { PatientSchemaService } from './services/PatientSchemaService';
 
 // Load environment variables
 dotenv.config();
@@ -79,6 +80,15 @@ function main(): void {
         } catch (error) {
             console.error('❌ Failed to initialize database schema:', error);
             console.log('⚠️  Server will continue but some features may not work properly');
+        }
+        
+        // Ensure patients table has police_id_no column
+        console.log(`\n👮 Checking patients table schema...`);
+        try {
+            await PatientSchemaService.ensurePoliceIdColumn();
+        } catch (error) {
+            console.error('❌ Failed to ensure patients schema:', error);
+            console.log('⚠️  Server will continue but patient features may not work properly');
         }
         
         // Create default super admin user

@@ -184,6 +184,186 @@ export class DashboardController {
         }
     }
 
+    // Get appointments with hospital and patient info, filterable by status, paginated
+    static async getAppointmentsWithDetails(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        try {
+            let { status, page, limit, search, hospitalId } = req.query;
+            // If hospitalId is not provided in query, try to get from token (req.user)
+            const reqAny = req as any;
+            if (!hospitalId && reqAny.user && reqAny.user.hospital_id) {
+                hospitalId = reqAny.user.hospital_id;
+            }
+            const pageNumber = parseInt(page as string) || 1;
+            const pageSize = parseInt(limit as string) || 10;
+            if (pageNumber < 1) {
+                res.status(400).json({ success: false, message: 'Page number must be greater than 0' });
+                return;
+            }
+            if (pageSize < 1 || pageSize > 100) {
+                res.status(400).json({ success: false, message: 'Limit must be between 1 and 100' });
+                return;
+            }
+            const offset = (pageNumber - 1) * pageSize;
+
+            // Build query with optional status and search (without scheduled_date, updated_date)
+            let baseQuery = `
+                SELECT a.id, a.status, a.created_date,
+                       h.id as hospital_id, h.name as hospital_name, h.license_number, h.address_city, h.address_state,
+                       p.id as patient_id, p.name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.police_id_no as patient_police_id_no
+                FROM appointments a
+                LEFT JOIN hospitals h ON a.hospital_id = h.id
+                LEFT JOIN patients p ON a.patient_id = p.id
+            `;
+            let countQuery = `
+                SELECT COUNT(*) as total
+                FROM appointments a
+                LEFT JOIN hospitals h ON a.hospital_id = h.id
+                LEFT JOIN patients p ON a.patient_id = p.id
+            `;
+            const params: any[] = [];
+            let whereParts: string[] = [];
+            if (status && typeof status === 'string' && status.trim() !== '') {
+                whereParts.push(`a.status = $${params.length + 1}`);
+                params.push(status);
+            }
+            if (hospitalId && (typeof hospitalId === 'string' || typeof hospitalId === 'number')) {
+                whereParts.push(`a.hospital_id = $${params.length + 1}`);
+                params.push(hospitalId);
+            }
+            if (search && typeof search === 'string' && search.trim() !== '') {
+                whereParts.push(`(p.name ILIKE $${params.length + 1} OR p.police_id_no ILIKE $${params.length + 1} OR h.name ILIKE $${params.length + 1} OR h.license_number ILIKE $${params.length + 1})`);
+                params.push(`%${search}%`);
+            }
+            let whereClause = whereParts.length > 0 ? ` WHERE ` + whereParts.join(' AND ') : '';
+            baseQuery += whereClause + ` ORDER BY a.created_date DESC NULLS LAST LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+            countQuery += whereClause;
+            params.push(pageSize, offset);
+
+            const [result, countResult] = await Promise.all([
+                client.query(baseQuery, params),
+                client.query(countQuery, params.slice(0, params.length - 2))
+            ]);
+
+            const totalRecords = parseInt(countResult.rows[0].total);
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            const appointments = result.rows.map(row => ({
+                id: row.id,
+                status: row.status,
+                createdDate: row.created_date,
+                hospital: {
+                    id: row.hospital_id,
+                    name: row.hospital_name,
+                    licenseNumber: row.license_number,
+                    city: row.address_city,
+                    state: row.address_state
+                },
+                patient: {
+                    id: row.patient_id,
+                    name: row.patient_name,
+                    gender: row.patient_gender,
+                    dateOfBirth: row.patient_dob,
+                    policeIdNo: row.patient_police_id_no
+                }
+            }));
+
+            res.status(200).json({
+                success: true,
+                message: 'Appointments with hospital and patient info retrieved successfully',
+                data: appointments,
+                pagination: {
+                    currentPage: pageNumber,
+                    totalPages: totalPages,
+                    totalRecords: totalRecords,
+                    recordsPerPage: pageSize,
+                    hasNextPage: pageNumber < totalPages,
+                    hasPreviousPage: pageNumber > 1
+                },
+                count: appointments.length
+            });
+        } catch (error) {
+            console.error('Error retrieving appointments with details:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while retrieving appointments with details'
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Get paginated list of patients
+    static async getPatientsList(req: Request, res: Response): Promise<void> {
+        const client = await pool.connect();
+        try {
+            const { page, limit, search } = req.query;
+            const pageNumber = parseInt(page as string) || 1;
+            const pageSize = parseInt(limit as string) || 10;
+            if (pageNumber < 1) {
+                res.status(400).json({ success: false, message: 'Page number must be greater than 0' });
+                return;
+            }
+            if (pageSize < 1 || pageSize > 100) {
+                res.status(400).json({ success: false, message: 'Limit must be between 1 and 100' });
+                return;
+            }
+            const offset = (pageNumber - 1) * pageSize;
+
+            // Build query with optional search
+            let baseQuery = `SELECT id, name, gender, date_of_birth, police_id_no, created_date, registration_date FROM patients`;
+            let countQuery = `SELECT COUNT(*) as total FROM patients`;
+            const params: any[] = [];
+            let whereClause = '';
+            if (search && typeof search === 'string' && search.trim() !== '') {
+                whereClause = ` WHERE name ILIKE $1 OR police_id_no ILIKE $1`;
+                params.push(`%${search}%`);
+            }
+            baseQuery += whereClause + ` ORDER BY created_date DESC NULLS LAST, registration_date DESC NULLS LAST LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+            countQuery += whereClause;
+            params.push(pageSize, offset);
+
+            const [result, countResult] = await Promise.all([
+                client.query(baseQuery, params),
+                client.query(countQuery, params.slice(0, whereClause ? 1 : 0))
+            ]);
+
+            const totalRecords = parseInt(countResult.rows[0].total);
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            const patients = result.rows.map(row => ({
+                id: row.id,
+                name: row.name,
+                gender: row.gender,
+                dateOfBirth: row.date_of_birth,
+                policeIdNo: row.police_id_no,
+                createdDate: row.created_date,
+                registrationDate: row.registration_date
+            }));
+
+            res.status(200).json({
+                success: true,
+                message: 'Patients list retrieved successfully',
+                data: patients,
+                pagination: {
+                    currentPage: pageNumber,
+                    totalPages: totalPages,
+                    totalRecords: totalRecords,
+                    recordsPerPage: pageSize,
+                    hasNextPage: pageNumber < totalPages,
+                    hasPreviousPage: pageNumber > 1
+                },
+                count: patients.length
+            });
+        } catch (error) {
+            console.error('Error retrieving patients list:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while retrieving patients list'
+            });
+        } finally {
+            client.release();
+        }
+    }
+
     // Get hospital status overview
     static async getHospitalStatusOverview(req: Request, res: Response): Promise<void> {
         const client = await pool.connect();
