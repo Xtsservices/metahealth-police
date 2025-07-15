@@ -72,9 +72,11 @@ export class SchemaMigrationService {
             // Execute migration
             if (Array.isArray(migration.sql)) {
                 for (const sql of migration.sql) {
-                    await client.query(sql + ';');
+                    console.log(`🔧 Executing SQL: ${sql}`);
+                    await client.query(sql);
                 }
             } else {
+                console.log(`🔧 Executing SQL: ${migration.sql}`);
                 await client.query(migration.sql);
             }
             
@@ -196,12 +198,21 @@ export class SchemaMigrationService {
             version: '2025.01.01_hospital_approval_fields',
             description: 'Add approval fields to hospitals table',
             sql: [
-                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'pending'`,
-                `ALTER TABLE hospitals ALTER COLUMN approval_status SET NOT NULL`,
+                `DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hospitals' AND column_name = 'approval_status') THEN
+                        ALTER TABLE hospitals ADD COLUMN approval_status VARCHAR(20) NOT NULL DEFAULT 'pending';
+                    END IF;
+                END $$`,
                 `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_by UUID`,
                 `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE`,
                 `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_notes TEXT`,
-                `ALTER TABLE hospitals ADD CONSTRAINT IF NOT EXISTS hospitals_approval_status_check CHECK (approval_status IN ('pending', 'approved', 'rejected'))`,
+                `DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'hospitals_approval_status_check') THEN
+                        ALTER TABLE hospitals ADD CONSTRAINT hospitals_approval_status_check CHECK (approval_status IN ('pending', 'approved', 'rejected'));
+                    END IF;
+                END $$`,
                 `CREATE INDEX IF NOT EXISTS idx_hospitals_approval_status ON hospitals(approval_status)`
             ],
             rollback: [
@@ -217,9 +228,18 @@ export class SchemaMigrationService {
             version: '2025.01.03_user_status_column',
             description: 'Add status field to users table',
             sql: [
-                `ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'inactive'`,
-                `ALTER TABLE users ALTER COLUMN status SET NOT NULL`,
-                `ALTER TABLE users ADD CONSTRAINT IF NOT EXISTS users_status_check CHECK (status IN ('active', 'inactive', 'suspended'))`,
+                `DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'status') THEN
+                        ALTER TABLE users ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'inactive';
+                    END IF;
+                END $$`,
+                `DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'users_status_check') THEN
+                        ALTER TABLE users ADD CONSTRAINT users_status_check CHECK (status IN ('active', 'inactive', 'suspended'));
+                    END IF;
+                END $$`,
                 `CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`
             ],
             rollback: [
@@ -232,8 +252,12 @@ export class SchemaMigrationService {
             version: '2025.01.07_user_active_status',
             description: 'Add is_active field to users table',
             sql: [
-                `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`,
-                `ALTER TABLE users ALTER COLUMN is_active SET NOT NULL`,
+                `DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_active') THEN
+                        ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT true;
+                    END IF;
+                END $$`,
                 `CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)`
             ],
             rollback: [

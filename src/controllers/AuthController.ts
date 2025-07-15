@@ -65,19 +65,19 @@ export class AuthController {
             const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
             const otpId = uuidv4();
 
-            // Store OTP in database (create otps table)
+            // Store OTP in database - first delete any existing OTP for this phone, then insert new one
+            const deleteOldOtpQuery = `
+                DELETE FROM admin_otp WHERE phone = $1
+            `;
+            
+            await client.query(deleteOldOtpQuery, [cleanPhone]);
+            
             const insertOtpQuery = `
-                INSERT INTO otps (id, user_id, phone, otp, expires_at, is_used, created_at)
+                INSERT INTO admin_otp (id, phone, otp, purpose, expires_at, is_used, created_at)
                 VALUES ($1, $2, $3, $4, $5, false, CURRENT_TIMESTAMP)
-                ON CONFLICT (user_id) 
-                DO UPDATE SET 
-                    otp = $4, 
-                    expires_at = $5, 
-                    is_used = false, 
-                    created_at = CURRENT_TIMESTAMP
             `;
 
-            await client.query(insertOtpQuery, [otpId, user.id, cleanPhone, otp, otpExpiry]);
+            await client.query(insertOtpQuery, [otpId, cleanPhone, otp, 'login', otpExpiry]);
 
             // TODO: Send OTP via SMS (integrate with SMS service)
             // For now, we'll return the OTP in response (remove in production)
@@ -127,8 +127,8 @@ export class AuthController {
             // Verify OTP
             const otpQuery = `
                 SELECT o.*, u.id as user_id, u.name, u.email, u.role, u.status, u.hospital_id
-                FROM otps o
-                JOIN users u ON o.user_id = u.id
+                FROM admin_otp o
+                JOIN users u ON o.phone = u.phone
                 WHERE o.phone = $1 AND o.otp = $2 AND o.is_used = false AND o.expires_at > CURRENT_TIMESTAMP
                 ORDER BY o.created_at DESC
                 LIMIT 1
@@ -157,12 +157,12 @@ export class AuthController {
 
             // Mark OTP as used
             const markOtpUsedQuery = `
-                UPDATE otps 
+                UPDATE admin_otp 
                 SET is_used = true, used_at = CURRENT_TIMESTAMP 
-                WHERE user_id = $1 AND phone = $2
+                WHERE phone = $1 AND otp = $2
             `;
 
-            await client.query(markOtpUsedQuery, [otpRecord.user_id, cleanPhone]);
+            await client.query(markOtpUsedQuery, [cleanPhone, cleanOtp]);
 
             // Get hospital details if user belongs to a hospital
             let hospitalInfo = null;
@@ -182,23 +182,24 @@ export class AuthController {
             const sessionToken = uuidv4();
             const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-            // Store session (create sessions table)
+            // Store session - first delete any existing session for this user, then insert new one
+            const deleteOldSessionQuery = `
+                DELETE FROM admin_sessions WHERE user_id = $1
+            `;
+            
+            await client.query(deleteOldSessionQuery, [otpRecord.user_id]);
+            
             const createSessionQuery = `
-                INSERT INTO sessions (id, user_id, token, expires_at, created_at)
+                INSERT INTO admin_sessions (id, user_id, token_hash, expires_at, created_at)
                 VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-                ON CONFLICT (user_id) 
-                DO UPDATE SET 
-                    token = $3, 
-                    expires_at = $4, 
-                    created_at = CURRENT_TIMESTAMP
             `;
 
             await client.query(createSessionQuery, [uuidv4(), otpRecord.user_id, sessionToken, sessionExpiry]);
 
-            // Update user's last login
+            // Update user's last activity
             const updateLastLoginQuery = `
                 UPDATE users 
-                SET last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+                SET updated_at = CURRENT_TIMESTAMP 
                 WHERE id = $1
             `;
 
@@ -252,8 +253,8 @@ export class AuthController {
 
             // Delete session
             const deleteSessionQuery = `
-                DELETE FROM sessions 
-                WHERE token = $1
+                DELETE FROM admin_sessions 
+                WHERE token_hash = $1
             `;
 
             const result = await client.query(deleteSessionQuery, [token]);
@@ -300,9 +301,9 @@ export class AuthController {
             // Check session validity
             const sessionQuery = `
                 SELECT s.*, u.id as user_id, u.name, u.email, u.role, u.status, u.hospital_id
-                FROM sessions s
+                FROM admin_sessions s
                 JOIN users u ON s.user_id = u.id
-                WHERE s.token = $1 AND s.expires_at > CURRENT_TIMESTAMP
+                WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP
             `;
 
             const sessionResult = await client.query(sessionQuery, [token]);
@@ -330,7 +331,7 @@ export class AuthController {
                         hospitalId: session.hospital_id
                     },
                     session: {
-                        token: session.token,
+                        token: session.token_hash,
                         expiresAt: session.expires_at
                     }
                 }

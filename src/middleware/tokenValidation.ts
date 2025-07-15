@@ -68,9 +68,9 @@ export const validateToken = async (req: AuthenticatedRequest, res: Response, ne
                     u.role,
                     u.status,
                     u.hospital_id
-                FROM sessions s
+                FROM admin_sessions s
                 JOIN users u ON s.user_id = u.id
-                WHERE s.token = $1 
+                WHERE s.token_hash = $1 
                   AND s.expires_at > CURRENT_TIMESTAMP
             `;
 

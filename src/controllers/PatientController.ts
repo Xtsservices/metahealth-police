@@ -30,7 +30,7 @@ export class PatientController {
             if (!name || !mobile || !aadhar || !policeIdNo) {
                 res.status(400).json({
                     success: false,
-                    message: 'All patient fields are required: name, mobile, aadhar, policeIdNo'
+                    message: 'Required patient fields are: name, mobile, aadhar, policeIdNo'
                 });
                 return;
             }
@@ -308,7 +308,7 @@ export class PatientController {
             // Build query with optional filters
             let query = `
                 SELECT 
-                    id, name, mobile, aadhar, police_id_no, status, created_date, last_login
+                    id, name, mobile, aadhar, police_id_no, status, created_date, updated_at, last_login
                 FROM patients
             `;
             
@@ -373,6 +373,7 @@ export class PatientController {
                 policeIdNo: row.police_id_no,
                 status: row.status,
                 createdDate: row.created_date,
+                updatedAt: row.updated_at,
                 lastLogin: row.last_login
             }));
 

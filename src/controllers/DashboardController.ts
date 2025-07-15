@@ -66,7 +66,7 @@ export class DashboardController {
             const recentPatientsQuery = `
                 SELECT COUNT(*) as count 
                 FROM patients 
-                WHERE created_date >= NOW() - INTERVAL '30 days'
+                WHERE registration_date >= NOW() - INTERVAL '30 days'
             `;
 
             const recentPatients = await client.query(recentPatientsQuery);
@@ -390,7 +390,7 @@ export class DashboardController {
 
             // Check if hospital exists and is in 'inactive' status
             const hospitalQuery = `
-                SELECT id, name, status, contact_email, contact_point_of_contact
+                SELECT id, name, status, contact_email 
                 FROM hospitals 
                 WHERE id = $1
             `;

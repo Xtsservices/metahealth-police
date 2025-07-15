@@ -21,6 +21,7 @@ export class PostgreSQLHospitalController {
                 'SELECT id FROM hospitals WHERE license_number = $1',
                 [licenseNumber]
             );
+            let contact_country_code="+91"; // Default country code, can be modified as needed
 
             if (existingHospital.rows.length > 0) {
                 await client.query('ROLLBACK');
@@ -84,9 +85,9 @@ export class PostgreSQLHospitalController {
                 INSERT INTO hospitals (
                     id, name, license_number, gst_number, pan_number,
                     address_street, address_city, address_state, address_zip_code, address_country,
-                    contact_country_code, contact_phone, contact_email, contact_point_of_contact,
+                    contact_phone, contact_email,
                     status
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING id, name, license_number, gst_number, pan_number, registration_date, status
             `;
 
@@ -101,10 +102,8 @@ export class PostgreSQLHospitalController {
                 address.state,
                 address.zipCode,
                 address.country,
-                contactInfo.countryCode,
                 contactInfo.phone,
                 contactInfo.email,
-                contactInfo.pointOfContact,
                 'inactive' // Default status
             ];
 
