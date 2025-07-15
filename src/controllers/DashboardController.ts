@@ -177,7 +177,7 @@ export class DashboardController {
             console.error('Error retrieving dashboard statistics:', error);
             res.status(500).json({
                 success: false,
-                message: 'Internal server error while retrieving dashboard statistics'
+        message: 'Internal server error while rdashboard statistics'
             });
         } finally {
             client.release();
