@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Appointment Documents - API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .api-info {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #2196f3;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #1976d2;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .response {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .document-group {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .document-group h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .document-item {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .document-meta {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .url-display {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+            border: 1px solid #ced4da;
+        }
+        .quick-buttons {
+            margin: 20px 0;
+        }
+        .filter-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Get Appointment Documents API Tester</h1>
+        
+        <div class="api-info">
+            <h3>API Information</h3>
+            <p><strong>Method:</strong> GET</p>
+            <p><strong>Endpoint:</strong> /api/appointment-documents/appointment/{appointmentId}</p>
+            <p><strong>Authentication:</strong> Not required</p>
+            <p><strong>Purpose:</strong> Retrieve all documents for a specific appointment, optionally filtered by document type</p>
+        </div>
+
+        <!-- API Configuration -->
+        <div class="form-group">
+            <label for="baseUrl">Base URL:</label>
+            <input type="text" id="baseUrl" value="http://localhost:3100/api" placeholder="Enter API base URL">
+        </div>
+
+        <div class="form-group">
+            <label for="appointmentId">Appointment ID (Required):</label>
+            <input type="text" id="appointmentId" placeholder="Enter appointment UUID (e.g., 123e4567-e89b-12d3-a456-426614174000)">
+        </div>
+
+        <div class="form-group">
+            <label for="documentType">Document Type Filter (Optional):</label>
+            <select id="documentType">
+                <option value="">All Documents</option>
+                <option value="lab_report">Lab Reports</option>
+                <option value="prescription">Prescriptions</option>
+                <option value="operation_sheet">Operation Sheets</option>
+                <option value="other">Other Documents</option>
+            </select>
+        </div>
+
+        <div class="filter-info">
+            <strong>Filter Options:</strong>
+            <ul>
+                <li><strong>All Documents:</strong> Returns all documents grouped by type</li>
+                <li><strong>Lab Reports:</strong> X-rays, blood tests, scans, laboratory results</li>
+                <li><strong>Prescriptions:</strong> Doctor's prescriptions and medication lists</li>
+                <li><strong>Operation Sheets:</strong> Surgical procedure notes and reports</li>
+                <li><strong>Other Documents:</strong> Miscellaneous medical documents</li>
+            </ul>
+        </div>
+
+        <!-- URL Display -->
+        <div class="form-group">
+            <label>Generated URL:</label>
+            <div id="urlDisplay" class="url-display">
+                Enter appointment ID to see the generated URL
+            </div>
+        </div>
+
+        <!-- Quick Test Buttons -->
+        <div class="quick-buttons">
+            <button onclick="getDocuments()">🔍 Get Documents</button>
+            <button onclick="getLabReports()">🧪 Get Lab Reports Only</button>
+            <button onclick="getPrescriptions()">💊 Get Prescriptions Only</button>
+            <button onclick="getOperationSheets()">🏥 Get Operation Sheets Only</button>
+            <button onclick="clearResults()">🧹 Clear Results</button>
+        </div>
+
+        <!-- Sample Data for Testing -->
+        <div class="form-group">
+            <button onclick="useSampleData()">📝 Use Sample Appointment ID</button>
+            <small style="color: #6c757d; display: block; margin-top: 5px;">
+                This will populate a sample UUID for testing. Replace with actual appointment ID.
+            </small>
+        </div>
+
+        <!-- Results Display -->
+        <div id="documentsDisplay" style="display: none;">
+            <h3>📄 Documents Found</h3>
+            <div id="documentsList"></div>
+        </div>
+
+        <!-- Raw Response -->
+        <div id="response" class="response" style="display: none;"></div>
+    </div>
+
+    <script>
+        const baseUrlInput = document.getElementById('baseUrl');
+        const appointmentIdInput = document.getElementById('appointmentId');
+        const documentTypeSelect = document.getElementById('documentType');
+        const urlDisplay = document.getElementById('urlDisplay');
+
+        // Update URL display when inputs change
+        function updateUrlDisplay() {
+            const baseUrl = baseUrlInput.value || 'http://localhost:3100/api';
+            const appointmentId = appointmentIdInput.value || '{appointmentId}';
+            const documentType = documentTypeSelect.value;
+            
+            let url = `${baseUrl}/appointment-documents/appointment/${appointmentId}`;
+            if (documentType) {
+                url += `?documentType=${documentType}`;
+            }
+            
+            urlDisplay.textContent = url;
+        }
+
+        // Add event listeners
+        appointmentIdInput.addEventListener('input', updateUrlDisplay);
+        documentTypeSelect.addEventListener('change', updateUrlDisplay);
+        baseUrlInput.addEventListener('input', updateUrlDisplay);
+
+        // Initialize URL display
+        updateUrlDisplay();
+
+        async function getDocuments(filterType = null) {
+            const baseUrl = baseUrlInput.value;
+            const appointmentId = appointmentIdInput.value;
+            
+            if (!appointmentId) {
+                showMessage('Please enter an appointment ID', 'error');
+                return;
+            }
+
+            // Set filter if provided
+            if (filterType) {
+                documentTypeSelect.value = filterType;
+                updateUrlDisplay();
+            }
+
+            const documentType = documentTypeSelect.value;
+            
+            try {
+                let url = `${baseUrl}/appointment-documents/appointment/${appointmentId}`;
+                if (documentType) {
+                    url += `?documentType=${documentType}`;
+                }
+
+                showMessage(`Fetching documents from: ${url}`, 'success');
+
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                showResponse(result);
+                
+                if (result.success) {
+                    displayDocuments(result.data);
+                    const filterText = documentType ? ` (filtered by ${documentType})` : '';
+                    showMessage(`Found ${result.data.totalCount} documents${filterText}`, 'success');
+                } else {
+                    showMessage('Error: ' + result.message, 'error');
+                    hideDocumentsDisplay();
+                }
+            } catch (error) {
+                showMessage('Network Error: ' + error.message, 'error');
+                showResponse({ error: error.message });
+                console.error('Error:', error);
+                hideDocumentsDisplay();
+            }
+        }
+
+        async function getLabReports() {
+            await getDocuments('lab_report');
+        }
+
+        async function getPrescriptions() {
+            await getDocuments('prescription');
+        }
+
+        async function getOperationSheets() {
+            await getDocuments('operation_sheet');
+        }
+
+        function displayDocuments(data) {
+            const documentsDisplay = document.getElementById('documentsDisplay');
+            const documentsList = document.getElementById('documentsList');
+            
+            let html = '';
+            
+            // Add appointment info
+            html += `
+                <div class="document-group">
+                    <h4>📋 Appointment Information</h4>
+                    <p><strong>Patient:</strong> ${data.appointment.patientName}</p>
+                    <p><strong>Hospital:</strong> ${data.appointment.hospitalName}</p>
+                    <p><strong>Status:</strong> ${data.appointment.status}</p>
+                    <p><strong>Total Documents:</strong> ${data.totalCount}</p>
+                </div>
+            `;
+
+            // Group documents
+            const groups = [
+                { key: 'labReports', title: '🧪 Lab Reports', docs: data.documents.labReports },
+                { key: 'prescriptions', title: '💊 Prescriptions', docs: data.documents.prescriptions },
+                { key: 'operationSheets', title: '🏥 Operation Sheets', docs: data.documents.operationSheets },
+                { key: 'other', title: '📄 Other Documents', docs: data.documents.other }
+            ];
+
+            groups.forEach(group => {
+                if (group.docs && group.docs.length > 0) {
+                    html += `
+                        <div class="document-group">
+                            <h4>${group.title} (${group.docs.length})</h4>
+                    `;
+                    
+                    group.docs.forEach(doc => {
+                        const fileSize = (doc.fileSize / 1024).toFixed(1);
+                        html += `
+                            <div class="document-item">
+                                <p><strong>📄 ${doc.documentName}</strong></p>
+                                <p><strong>Description:</strong> ${doc.description || 'No description'}</p>
+                                <div class="document-meta">
+                                    <span>Size: ${fileSize} KB</span> | 
+                                    <span>Type: ${doc.mimeType}</span> | 
+                                    <span>Uploaded by: ${doc.uploadedBy}</span> | 
+                                    <span>Date: ${new Date(doc.createdDate).toLocaleString()}</span>
+                                </div>
+                                <p><strong>Document ID:</strong> <code>${doc.id}</code></p>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                }
+            });
+
+            if (data.totalCount === 0) {
+                html += `
+                    <div class="document-group">
+                        <h4>📄 No Documents Found</h4>
+                        <p>No documents have been uploaded for this appointment yet.</p>
+                    </div>
+                `;
+            }
+
+            documentsList.innerHTML = html;
+            documentsDisplay.style.display = 'block';
+        }
+
+        function hideDocumentsDisplay() {
+            document.getElementById('documentsDisplay').style.display = 'none';
+        }
+
+        function showResponse(data) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+            responseDiv.style.display = 'block';
+        }
+
+        function showMessage(message, type) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.success, .error');
+            existingMessages.forEach(msg => msg.remove());
+            
+            // Create new message
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            
+            // Insert after the title
+            const container = document.querySelector('.container');
+            const title = container.querySelector('h1');
+            title.insertAdjacentElement('afterend', messageDiv);
+        }
+
+        function clearResults() {
+            document.getElementById('response').style.display = 'none';
+            hideDocumentsDisplay();
+            
+            // Clear existing messages
+            const existingMessages = document.querySelectorAll('.success, .error');
+            existingMessages.forEach(msg => msg.remove());
+        }
+
+        function useSampleData() {
+            // Generate a sample UUID for testing
+            appointmentIdInput.value = '123e4567-e89b-12d3-a456-426614174000';
+            updateUrlDisplay();
+            showMessage('Sample appointment ID populated. Replace with actual ID for real testing.', 'success');
+        }
+    </script>
+</body>
+</html>

@@ -319,8 +319,7 @@ export class DashboardController {
             // Start transaction
             await client.query('BEGIN');
             
-            const { hospitalId } = req.params;
-            const { approvedBy } = req.body; // Super admin user ID
+            const { hospitalId } = req.body; // Super admin user ID
 
             // Check if hospital exists and is in 'inactive' status
             const hospitalQuery = `
@@ -364,14 +363,12 @@ export class DashboardController {
             const updateHospitalQuery = `
                 UPDATE hospitals 
                 SET status = 'active', 
-                    updated_at = CURRENT_TIMESTAMP,
-                    approved_by = $2,
-                    approved_date = CURRENT_TIMESTAMP
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1 
                 RETURNING id, name, status, updated_at
             `;
 
-            const updatedHospital = await client.query(updateHospitalQuery, [hospitalId, approvedBy]);
+            const updatedHospital = await client.query(updateHospitalQuery, [hospitalId]);
 
             // Find and approve the hospital admin user
             const findAdminQuery = `
@@ -397,14 +394,12 @@ export class DashboardController {
             const updateUserQuery = `
                 UPDATE users 
                 SET status = 'active', 
-                    updated_at = CURRENT_TIMESTAMP,
-                    approved_by = $2,
-                    approved_date = CURRENT_TIMESTAMP
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1 
                 RETURNING id, name, email, phone, status, updated_at
             `;
 
-            const updatedUser = await client.query(updateUserQuery, [adminUser.id, approvedBy]);
+            const updatedUser = await client.query(updateUserQuery, [adminUser.id]);
 
             // Commit transaction
             await client.query('COMMIT');

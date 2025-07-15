@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Base64 Document Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-section {
+            background-color: #e8f5e8;
+            padding: 20px;
+            border-radius: 4px;
+            border-left: 4px solid #4caf50;
+            margin-bottom: 20px;
+        }
+        .info-section {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .base64-display {
+            height: 200px;
+            font-family: monospace;
+            font-size: 12px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        button {
+            background-color: #4caf50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .upload-btn {
+            background-color: #2196f3;
+        }
+        .upload-btn:hover {
+            background-color: #1976d2;
+        }
+        .clear-btn {
+            background-color: #ff9800;
+        }
+        .clear-btn:hover {
+            background-color: #f57c00;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .response {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .file-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .payload-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .tab-container {
+            margin-bottom: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .tab-button.active {
+            border-bottom-color: #2196f3;
+            color: #2196f3;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📁 Base64 Document Upload Tester</h1>
+        
+        <div class="info-section">
+            <h3>🔄 Dual Upload Support</h3>
+            <p>This API now supports both <strong>traditional multipart uploads</strong> and <strong>Base64 JSON uploads</strong>:</p>
+            <ul>
+                <li><strong>Multipart:</strong> Traditional file upload using form-data (recommended for large files)</li>
+                <li><strong>Base64:</strong> File encoded as base64 string in JSON payload (recommended for API integrations)</li>
+            </ul>
+        </div>
+
+        <!-- Tab Container -->
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="switchTab('base64')">Base64 Upload</button>
+                <button class="tab-button" onclick="switchTab('multipart')">Multipart Upload</button>
+                <button class="tab-button" onclick="switchTab('comparison')">Comparison</button>
+            </div>
+
+            <!-- Base64 Upload Tab -->
+            <div id="base64-tab" class="tab-content active">
+                <div class="upload-section">
+                    <h3>📤 Base64 Upload Method</h3>
+                    <p>Upload files by converting them to base64 and sending as JSON payload. Perfect for API integrations.</p>
+                </div>
+
+                <!-- Authentication -->
+                <div class="form-group">
+                    <label for="baseUrl">Base URL:</label>
+                    <input type="text" id="baseUrl" value="http://localhost:3100/api" placeholder="Enter API base URL">
+                </div>
+
+                <div class="form-group">
+                    <label for="token">Authentication Token:</label>
+                    <input type="text" id="token" placeholder="Enter Bearer token">
+                    <small style="color: #6c757d;">Get token by logging in first</small>
+                </div>
+
+                <!-- Appointment Details -->
+                <div class="form-group">
+                    <label for="appointmentId">Appointment ID:</label>
+                    <input type="text" id="appointmentId" placeholder="Enter appointment UUID">
+                </div>
+
+                <div class="form-group">
+                    <label for="documentType">Document Type:</label>
+                    <select id="documentType">
+                        <option value="lab_report">Lab Report</option>
+                        <option value="prescription">Prescription</option>
+                        <option value="operation_sheet">Operation Sheet</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description (Optional):</label>
+                    <textarea id="description" placeholder="Enter document description"></textarea>
+                </div>
+
+                <!-- File Selection -->
+                <div class="form-group">
+                    <label for="fileInput">Select File:</label>
+                    <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt,.xls,.xlsx">
+                    <small style="color: #6c757d;">Maximum file size: 50MB</small>
+                </div>
+
+                <!-- File Info Display -->
+                <div id="fileInfo" class="file-info" style="display: none;"></div>
+
+                <!-- Base64 Preview -->
+                <div class="form-group">
+                    <label>Base64 Preview (first 500 characters):</label>
+                    <div id="base64Preview" class="base64-display">Select a file to see base64 preview...</div>
+                </div>
+
+                <!-- JSON Payload Preview -->
+                <div class="form-group">
+                    <label>JSON Payload Preview:</label>
+                    <div id="payloadPreview" class="payload-preview">Select a file and fill details to see payload...</div>
+                </div>
+
+                <!-- Action Buttons -->
+                <button onclick="convertToBase64()">🔄 Convert to Base64</button>
+                <button class="upload-btn" onclick="uploadBase64Document()">📤 Upload Base64 Document</button>
+                <button class="clear-btn" onclick="clearAll()">🧹 Clear All</button>
+            </div>
+
+            <!-- Multipart Upload Tab -->
+            <div id="multipart-tab" class="tab-content">
+                <div class="upload-section">
+                    <h3>📁 Traditional Multipart Upload</h3>
+                    <p>Traditional file upload using form-data. Best for large files and web browser uploads.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="multipartFile">Select File:</label>
+                    <input type="file" id="multipartFile" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt,.xls,.xlsx">
+                </div>
+
+                <div class="form-group">
+                    <label for="multipartAppointmentId">Appointment ID:</label>
+                    <input type="text" id="multipartAppointmentId" placeholder="Enter appointment UUID">
+                </div>
+
+                <div class="form-group">
+                    <label for="multipartDocumentType">Document Type:</label>
+                    <select id="multipartDocumentType">
+                        <option value="lab_report">Lab Report</option>
+                        <option value="prescription">Prescription</option>
+                        <option value="operation_sheet">Operation Sheet</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="multipartDescription">Description (Optional):</label>
+                    <textarea id="multipartDescription" placeholder="Enter document description"></textarea>
+                </div>
+
+                <button class="upload-btn" onclick="uploadMultipartDocument()">📁 Upload Multipart Document</button>
+            </div>
+
+            <!-- Comparison Tab -->
+            <div id="comparison-tab" class="tab-content">
+                <h3>⚖️ Base64 vs Multipart Comparison</h3>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="border: 1px solid #dee2e6; padding: 12px; text-align: left;">Feature</th>
+                            <th style="border: 1px solid #dee2e6; padding: 12px; text-align: left;">Base64 Upload</th>
+                            <th style="border: 1px solid #dee2e6; padding: 12px; text-align: left;">Multipart Upload</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;"><strong>Content Type</strong></td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">application/json</td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">multipart/form-data</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;"><strong>Payload Size</strong></td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">~33% larger than original</td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">Same as original file</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;"><strong>API Integration</strong></td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">✅ Excellent - Pure JSON</td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">⚠️ Requires form-data support</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;"><strong>Memory Usage</strong></td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">⚠️ Entire file in memory</td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">✅ Streaming support</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;"><strong>Large Files</strong></td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">❌ Not recommended >10MB</td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">✅ Excellent for large files</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;"><strong>Mobile Apps</strong></td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">✅ Perfect for mobile APIs</td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">✅ Native support</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;"><strong>Web Browsers</strong></td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">✅ Works with FileReader API</td>
+                            <td style="border: 1px solid #dee2e6; padding: 12px;">✅ Native FormData support</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 20px;">
+                    <h4>🎯 When to Use Each Method:</h4>
+                    <div style="display: flex; gap: 20px; margin-top: 15px;">
+                        <div style="flex: 1; background-color: #e8f5e8; padding: 15px; border-radius: 4px;">
+                            <h5 style="color: #2e7d32;">📤 Use Base64 For:</h5>
+                            <ul>
+                                <li>Small to medium files (&lt; 10MB)</li>
+                                <li>API-first architectures</li>
+                                <li>Mobile app integrations</li>
+                                <li>JSON-only systems</li>
+                                <li>Microservices communication</li>
+                            </ul>
+                        </div>
+                        <div style="flex: 1; background-color: #e3f2fd; padding: 15px; border-radius: 4px;">
+                            <h5 style="color: #1976d2;">📁 Use Multipart For:</h5>
+                            <ul>
+                                <li>Large files (&gt; 10MB)</li>
+                                <li>Web browser uploads</li>
+                                <li>Traditional file upload forms</li>
+                                <li>Streaming scenarios</li>
+                                <li>Memory-constrained environments</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Display -->
+        <div id="response" class="response" style="display: none;"></div>
+    </div>
+
+    <script>
+        let currentBase64 = '';
+        let currentFileInfo = null;
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function convertToBase64() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showMessage('Please select a file first', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Get base64 without data URL prefix
+                const base64String = e.target.result.split(',')[1];
+                currentBase64 = base64String;
+                
+                currentFileInfo = {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    base64Length: base64String.length
+                };
+
+                displayFileInfo();
+                displayBase64Preview();
+                updatePayloadPreview();
+                
+                showMessage('File converted to base64 successfully!', 'success');
+            };
+
+            reader.onerror = function() {
+                showMessage('Error reading file', 'error');
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        function displayFileInfo() {
+            if (!currentFileInfo) return;
+
+            const fileInfoDiv = document.getElementById('fileInfo');
+            const fileSizeKB = (currentFileInfo.size / 1024).toFixed(2);
+            const base64SizeKB = (currentFileInfo.base64Length * 0.75 / 1024).toFixed(2); // Approximate
+
+            fileInfoDiv.innerHTML = `
+                <h4>📄 File Information</h4>
+                <p><strong>Name:</strong> ${currentFileInfo.name}</p>
+                <p><strong>Size:</strong> ${fileSizeKB} KB (${currentFileInfo.size} bytes)</p>
+                <p><strong>MIME Type:</strong> ${currentFileInfo.type}</p>
+                <p><strong>Base64 Length:</strong> ${currentFileInfo.base64Length.toLocaleString()} characters</p>
+                <p><strong>Base64 Size:</strong> ~${base64SizeKB} KB (33% larger than original)</p>
+            `;
+            fileInfoDiv.style.display = 'block';
+        }
+
+        function displayBase64Preview() {
+            const preview = document.getElementById('base64Preview');
+            if (currentBase64) {
+                const previewText = currentBase64.length > 500 
+                    ? currentBase64.substring(0, 500) + '...\n\n[Base64 string truncated for display]'
+                    : currentBase64;
+                preview.textContent = previewText;
+            }
+        }
+
+        function updatePayloadPreview() {
+            const appointmentId = document.getElementById('appointmentId').value;
+            const documentType = document.getElementById('documentType').value;
+            const description = document.getElementById('description').value;
+
+            if (!currentFileInfo || !currentBase64) return;
+
+            const payload = {
+                appointmentId: appointmentId || 'your-appointment-uuid-here',
+                documentType: documentType,
+                description: description || 'Document description',
+                fileData: currentBase64.length > 100 ? currentBase64.substring(0, 100) + '...[truncated]' : currentBase64,
+                fileName: currentFileInfo.name,
+                mimeType: currentFileInfo.type
+            };
+
+            document.getElementById('payloadPreview').textContent = JSON.stringify(payload, null, 2);
+        }
+
+        async function uploadBase64Document() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const token = document.getElementById('token').value;
+            const appointmentId = document.getElementById('appointmentId').value;
+            const documentType = document.getElementById('documentType').value;
+            const description = document.getElementById('description').value;
+
+            if (!token) {
+                showMessage('Please enter authentication token', 'error');
+                return;
+            }
+
+            if (!appointmentId) {
+                showMessage('Please enter appointment ID', 'error');
+                return;
+            }
+
+            if (!currentBase64 || !currentFileInfo) {
+                showMessage('Please select and convert a file first', 'error');
+                return;
+            }
+
+            const payload = {
+                appointmentId: appointmentId,
+                documentType: documentType,
+                description: description,
+                fileData: currentBase64,
+                fileName: currentFileInfo.name,
+                mimeType: currentFileInfo.type
+            };
+
+            try {
+                showMessage('Uploading base64 document...', 'success');
+
+                const response = await fetch(`${baseUrl}/appointment-documents/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                showResponse(result);
+
+                if (result.success) {
+                    showMessage('Base64 document uploaded successfully!', 'success');
+                } else {
+                    showMessage('Upload failed: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Network Error: ' + error.message, 'error');
+                showResponse({ error: error.message });
+                console.error('Error:', error);
+            }
+        }
+
+        async function uploadMultipartDocument() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const token = document.getElementById('token').value;
+            const fileInput = document.getElementById('multipartFile');
+            const appointmentId = document.getElementById('multipartAppointmentId').value;
+            const documentType = document.getElementById('multipartDocumentType').value;
+            const description = document.getElementById('multipartDescription').value;
+
+            if (!token) {
+                showMessage('Please enter authentication token', 'error');
+                return;
+            }
+
+            if (!appointmentId) {
+                showMessage('Please enter appointment ID', 'error');
+                return;
+            }
+
+            if (!fileInput.files[0]) {
+                showMessage('Please select a file', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('document', fileInput.files[0]);
+            formData.append('appointmentId', appointmentId);
+            formData.append('documentType', documentType);
+            if (description) {
+                formData.append('description', description);
+            }
+
+            try {
+                showMessage('Uploading multipart document...', 'success');
+
+                const response = await fetch(`${baseUrl}/appointment-documents/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                showResponse(result);
+
+                if (result.success) {
+                    showMessage('Multipart document uploaded successfully!', 'success');
+                } else {
+                    showMessage('Upload failed: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Network Error: ' + error.message, 'error');
+                showResponse({ error: error.message });
+                console.error('Error:', error);
+            }
+        }
+
+        function clearAll() {
+            // Clear file inputs
+            document.getElementById('fileInput').value = '';
+            document.getElementById('multipartFile').value = '';
+            
+            // Clear form fields
+            document.getElementById('appointmentId').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('multipartAppointmentId').value = '';
+            document.getElementById('multipartDescription').value = '';
+            
+            // Clear base64 data
+            currentBase64 = '';
+            currentFileInfo = null;
+            
+            // Clear displays
+            document.getElementById('fileInfo').style.display = 'none';
+            document.getElementById('base64Preview').textContent = 'Select a file to see base64 preview...';
+            document.getElementById('payloadPreview').textContent = 'Select a file and fill details to see payload...';
+            document.getElementById('response').style.display = 'none';
+            
+            // Clear messages
+            const existingMessages = document.querySelectorAll('.success, .error');
+            existingMessages.forEach(msg => msg.remove());
+        }
+
+        function showResponse(data) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+            responseDiv.style.display = 'block';
+        }
+
+        function showMessage(message, type) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.success, .error');
+            existingMessages.forEach(msg => msg.remove());
+            
+            // Create new message
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            
+            // Insert after the title
+            const container = document.querySelector('.container');
+            const title = container.querySelector('h1');
+            title.insertAdjacentElement('afterend', messageDiv);
+        }
+
+        // Auto-update payload preview when fields change
+        document.getElementById('appointmentId').addEventListener('input', updatePayloadPreview);
+        document.getElementById('documentType').addEventListener('change', updatePayloadPreview);
+        document.getElementById('description').addEventListener('input', updatePayloadPreview);
+
+        // Auto-convert when file is selected
+        document.getElementById('fileInput').addEventListener('change', function() {
+            if (this.files[0]) {
+                setTimeout(convertToBase64, 100); // Small delay to ensure file is ready
+            }
+        });
+    </script>
+</body>
+</html>

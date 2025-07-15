@@ -49,13 +49,29 @@ psql -d metahealth_police -f database/schema.sql
 psql -d metahealth_police -f database/migrations/001_create_hospitals_table.sql
 psql -d metahealth_police -f database/migrations/002_add_gst_pan_mobile.sql
 psql -d metahealth_police -f database/migrations/003_add_approval_fields.sql
+psql -d metahealth_police -f database/migrations/004_create_auth_tables.sql
+psql -d metahealth_police -f database/migrations/005_update_users_for_super_admin.sql
+psql -d metahealth_police -f database/migrations/006_add_approval_tracking_columns.sql
+
+# OR run via Node.js scripts:
+node run-users-migration.js
+node run-approval-migration.js
 ```
+
+**⚠️ Important:** Run migration `005_update_users_for_super_admin.sql` to fix the users table for super admin support!
 
 4. **Start the server:**
 ```bash
 npm run dev    # Development mode
 npm start      # Production mode
 ```
+
+The server will automatically:
+- ✅ Test database connection
+- 👑 Create default Super Admin user (if none exists)
+- 🚀 Start all API endpoints
+
+**Default Super Admin:** Phone `+91-9999999999` will be ready for OTP login!
 
 ## API Endpoints
 
@@ -78,6 +94,20 @@ GET    /api/users/hospital/:id     # Get users by hospital
 
 ### Mobile OTP Authentication
 ```
+POST   /api/auth/check-phone       # Check if phone number exists
+POST   /api/auth/generate-otp      # Generate OTP for mobile login
+POST   /api/auth/verify-otp        # Verify OTP and login
+POST   /api/auth/logout            # Logout user
+GET    /api/auth/validate-session  # Validate session token
+```
+
+**🔐 Token Authentication Features:**
+- Session-based authentication with database validation
+- UUID-format session tokens with expiration
+- Role-based access control (super_admin, hospital_admin, etc.)
+- Automatic session cleanup and user status validation
+- Support for Authorization header or query parameter token
+```
 POST   /api/auth/generate-otp      # Generate OTP for mobile login
 POST   /api/auth/verify-otp        # Verify OTP and login
 POST   /api/auth/logout            # Logout user
@@ -92,6 +122,25 @@ GET    /api/dashboard/users-by-hospital       # User stats by hospital
 GET    /api/dashboard/pending-hospitals       # Hospitals pending approval
 PUT    /api/dashboard/approve-hospital/:id    # Approve hospital & admin
 PUT    /api/dashboard/reject-hospital/:id     # Reject hospital application
+```
+
+**🔐 Authentication Required:** All dashboard endpoints require:
+- Valid session token in `Authorization: Bearer <token>` header
+- Super admin role (`super_admin`)
+- Active user status
+
+**Example with Authentication:**
+```bash
+# 1. Login and get token
+POST /api/auth/verify-otp
+{
+  "phone": "9999999999",
+  "otp": "123456"
+}
+
+# 2. Use token for dashboard access
+GET /api/dashboard/stats
+Authorization: Bearer <session_token>
 ```
 
 **Hospital Status Filtering & Pagination:**
@@ -119,6 +168,55 @@ Super Admin can:
 - View pending hospitals: `GET /api/dashboard/pending-hospitals`
 - See hospital details and admin user information
 - Review application completeness
+
+## Default Super Admin
+
+### Automatic Creation
+When the server starts, a default Super Admin user is automatically created if none exists:
+
+**Default Credentials:**
+- 📱 **Phone:** `+91-9999999999`
+- 📧 **Email:** `superadmin@metahealth.com`
+- 👤 **Name:** `Super Admin`
+- 🔑 **Role:** `super_admin`
+- ✅ **Status:** `active`
+
+### First Time Login
+1. **Start the server:** The default Super Admin is created automatically
+2. **Generate OTP:** Use the phone number `+91-9999999999`
+3. **Login:** Verify OTP to access Super Admin dashboard
+4. **Access Dashboard:** Navigate to `/api/dashboard/stats`
+
+### Check Phone Existence
+Verify if a phone number exists in the system:
+```bash
+POST /api/auth/check-phone
+Content-Type: application/json
+
+{
+  "phone": "+91-9999999999"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "exists": true,
+  "message": "Phone number found in system",
+  "user": {
+    "id": "uuid",
+    "name": "Super Admin",
+    "phone": "+91-9999999999",
+    "email": "superadmin@metahealth.com",
+    "role": "super_admin",
+    "status": "active",
+    "hospital_id": null,
+    "hospital_name": null,
+    "hospital_status": null
+  }
+}
+```
 
 ## Mobile OTP Authentication
 

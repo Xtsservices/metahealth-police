@@ -4,6 +4,9 @@ import { validateOTPGeneration, validateOTPVerification, validateLogout } from '
 
 const router = Router();
 
+// POST /api/auth/check-phone - Check if phone number exists in system
+router.post('/check-phone', AuthController.checkPhone);
+
 // POST /api/auth/generate-otp - Generate OTP for mobile login
 router.post('/generate-otp', validateOTPGeneration, AuthController.generateOTP);
 

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
+import { DefaultUserService } from '../services/DefaultUserService';
 
 export class AuthController {
     // Generate OTP for mobile login
@@ -343,6 +344,70 @@ export class AuthController {
             });
         } finally {
             client.release();
+        }
+    }
+
+    // Check if phone number exists in the system
+    static async checkPhone(req: Request, res: Response): Promise<void> {
+        try {
+            const { phone } = req.body;
+
+            // Validate phone number
+            if (!phone || typeof phone !== 'string') {
+                res.status(400).json({
+                    success: false,
+                    message: 'Phone number is required'
+                });
+                return;
+            }
+
+            // Basic phone number validation
+            const phoneRegex = /^[+]?[\d\s\-\(\)]{10,15}$/;
+            if (!phoneRegex.test(phone.trim())) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid phone number format'
+                });
+                return;
+            }
+
+            const cleanPhone = phone.trim();
+
+            // Check if phone exists using DefaultUserService
+            const userInfo = await DefaultUserService.checkPhoneExists(cleanPhone);
+
+            if (userInfo) {
+                res.json({
+                    success: true,
+                    exists: true,
+                    message: 'Phone number found in system',
+                    user: {
+                        id: userInfo.id,
+                        name: userInfo.name,
+                        phone: userInfo.phone,
+                        email: userInfo.email,
+                        role: userInfo.role,
+                        status: userInfo.status,
+                        hospital_id: userInfo.hospital_id,
+                        hospital_name: userInfo.hospital_name,
+                        hospital_status: userInfo.hospital_status
+                    }
+                });
+            } else {
+                res.json({
+                    success: true,
+                    exists: false,
+                    message: 'Phone number not found in system',
+                    user: null
+                });
+            }
+
+        } catch (error) {
+            console.error('Error checking phone existence:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error while checking phone'
+            });
         }
     }
 }

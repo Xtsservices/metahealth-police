@@ -18,17 +18,16 @@ async function runMigration() {
         console.log('🔄 Connecting to database...');
         
         // Read the migration file
-        const migrationPath = path.join(__dirname, 'database', 'migrations', '004_create_auth_tables.sql');
+        const migrationPath = path.join(__dirname, 'migrations', '009_add_base64_storage.sql');
         const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
         
-        console.log('📄 Running migration: 004_create_auth_tables.sql');
+        console.log('📄 Running migration: 009_add_base64_storage.sql');
         
         // Execute the migration
         await pool.query(migrationSQL);
         
         console.log('✅ Migration completed successfully!');
-        console.log('📊 Tables created: otps, sessions');
-        console.log('📊 Column added: users.last_login');
+        console.log('📊 Column added: appointment_documents.file_data');
         console.log('📊 Indexes created for performance');
         
     } catch (error) {

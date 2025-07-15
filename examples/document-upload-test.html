@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .response {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .step {
+            background-color: #e9ecef;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Document Upload Test Interface</h1>
+        <p>This interface allows you to test the document upload API functionality.</p>
+
+        <!-- Step 1: Login -->
+        <div class="step">
+            <h3>Step 1: Authentication</h3>
+            <div class="form-group">
+                <label for="phone">Hospital Admin Phone:</label>
+                <input type="text" id="phone" value="555-111-2222" placeholder="Enter phone number">
+            </div>
+            <button onclick="generateOTP()">Generate OTP</button>
+            
+            <div class="form-group" style="margin-top: 10px;">
+                <label for="otp">OTP Code:</label>
+                <input type="text" id="otp" placeholder="Enter OTP received">
+            </div>
+            <button onclick="verifyOTP()">Verify OTP & Login</button>
+            
+            <div class="form-group" style="margin-top: 10px;">
+                <label for="token">Authentication Token:</label>
+                <input type="text" id="token" placeholder="Token will appear here after login" readonly>
+            </div>
+        </div>
+
+        <!-- Step 2: Create Patient -->
+        <div class="step">
+            <h3>Step 2: Create Patient with Appointment</h3>
+            <div class="form-group">
+                <label for="patientName">Patient Name:</label>
+                <input type="text" id="patientName" value="Test Patient" placeholder="Enter patient name">
+            </div>
+            <div class="form-group">
+                <label for="patientMobile">Patient Mobile:</label>
+                <input type="text" id="patientMobile" value="9876543210" placeholder="Enter mobile number">
+            </div>
+            <div class="form-group">
+                <label for="aadhar">Aadhar Number:</label>
+                <input type="text" id="aadhar" value="123456789012" placeholder="Enter Aadhar number">
+            </div>
+            <div class="form-group">
+                <label for="policeId">Police ID:</label>
+                <input type="text" id="policeId" value="POL001" placeholder="Enter Police ID">
+            </div>
+            <button onclick="createPatient()">Create Patient with Appointment</button>
+            
+            <div class="form-group" style="margin-top: 10px;">
+                <label for="appointmentId">Appointment ID:</label>
+                <input type="text" id="appointmentId" placeholder="Appointment ID will appear here" readonly>
+            </div>
+        </div>
+
+        <!-- Step 3: Upload Document -->
+        <div class="step">
+            <h3>Step 3: Upload Document</h3>
+            <div class="form-group">
+                <label for="document">Select Document File:</label>
+                <input type="file" id="document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt,.xls,.xlsx">
+            </div>
+            <div class="form-group">
+                <label for="documentType">Document Type:</label>
+                <select id="documentType">
+                    <option value="lab_report">Lab Report</option>
+                    <option value="prescription">Prescription</option>
+                    <option value="operation_sheet">Operation Sheet</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="description">Description (Optional):</label>
+                <textarea id="description" rows="3" placeholder="Enter document description"></textarea>
+            </div>
+            <button onclick="uploadDocument()">Upload Document</button>
+        </div>
+
+        <!-- Step 4: View Documents -->
+        <div class="step">
+            <h3>Step 4: View Uploaded Documents</h3>
+            <button onclick="getDocuments()">Get All Documents for Appointment</button>
+            <div id="documentsList"></div>
+        </div>
+
+        <!-- Response Area -->
+        <div id="response" class="response" style="display: none;"></div>
+    </div>
+
+    <script>
+        const baseUrl = 'http://localhost:3100/api';
+        let authToken = '';
+
+        async function generateOTP() {
+            const phone = document.getElementById('phone').value;
+            
+            try {
+                const response = await fetch(`${baseUrl}/auth/generate-otp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phone })
+                });
+
+                const result = await response.json();
+                showResponse(result);
+                
+                if (result.success) {
+                    showMessage('OTP sent successfully! Check your phone/console.', 'success');
+                } else {
+                    showMessage('Failed to generate OTP: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function verifyOTP() {
+            const phone = document.getElementById('phone').value;
+            const otp = document.getElementById('otp').value;
+            
+            if (!otp) {
+                showMessage('Please enter OTP', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/auth/verify-otp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phone, otp })
+                });
+
+                const result = await response.json();
+                showResponse(result);
+                
+                if (result.success && result.data.token) {
+                    authToken = result.data.token;
+                    document.getElementById('token').value = authToken;
+                    showMessage('Login successful! Token saved.', 'success');
+                } else {
+                    showMessage('Login failed: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function createPatient() {
+            if (!authToken) {
+                showMessage('Please login first to get authentication token', 'error');
+                return;
+            }
+
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const appointmentDate = tomorrow.toISOString().split('T')[0];
+
+            const patientData = {
+                name: document.getElementById('patientName').value,
+                mobile: document.getElementById('patientMobile').value,
+                aadhar: document.getElementById('aadhar').value,
+                policeIdNo: document.getElementById('policeId').value,
+                appointmentDate: appointmentDate,
+                appointmentTime: "14:30",
+                purpose: "Document upload test",
+                notes: "Created for testing document upload functionality"
+            };
+
+            try {
+                const response = await fetch(`${baseUrl}/patients/createPatient`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(patientData)
+                });
+
+                const result = await response.json();
+                showResponse(result);
+                
+                if (result.success && result.data.appointment.id) {
+                    document.getElementById('appointmentId').value = result.data.appointment.id;
+                    showMessage('Patient and appointment created successfully!', 'success');
+                } else {
+                    showMessage('Failed to create patient: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function uploadDocument() {
+            if (!authToken) {
+                showMessage('Please login first to get authentication token', 'error');
+                return;
+            }
+
+            const appointmentId = document.getElementById('appointmentId').value;
+            if (!appointmentId) {
+                showMessage('Please create a patient with appointment first', 'error');
+                return;
+            }
+
+            const fileInput = document.getElementById('document');
+            if (!fileInput.files[0]) {
+                showMessage('Please select a file to upload', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('document', fileInput.files[0]);
+            formData.append('appointmentId', appointmentId);
+            formData.append('documentType', document.getElementById('documentType').value);
+            
+            const description = document.getElementById('description').value;
+            if (description) {
+                formData.append('description', description);
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/appointment-documents/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                showResponse(result);
+                
+                if (result.success) {
+                    showMessage('Document uploaded successfully!', 'success');
+                } else {
+                    showMessage('Upload failed: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function getDocuments() {
+            const appointmentId = document.getElementById('appointmentId').value;
+            if (!appointmentId) {
+                showMessage('Please create a patient with appointment first', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/appointment-documents/appointment/${appointmentId}`);
+                const result = await response.json();
+                showResponse(result);
+                
+                if (result.success) {
+                    const documentsListDiv = document.getElementById('documentsList');
+                    let html = '<h4>Documents:</h4>';
+                    
+                    const docs = result.data.documents;
+                    let totalDocs = 0;
+                    
+                    ['labReports', 'prescriptions', 'operationSheets', 'other'].forEach(type => {
+                        if (docs[type] && docs[type].length > 0) {
+                            html += `<h5>${type.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</h5>`;
+                            docs[type].forEach(doc => {
+                                html += `<p>- ${doc.documentName} (${doc.fileSize} bytes) - ${doc.description || 'No description'}</p>`;
+                                totalDocs++;
+                            });
+                        }
+                    });
+                    
+                    if (totalDocs === 0) {
+                        html += '<p>No documents found for this appointment.</p>';
+                    }
+                    
+                    documentsListDiv.innerHTML = html;
+                    showMessage(`Found ${totalDocs} documents`, 'success');
+                } else {
+                    showMessage('Failed to get documents: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        function showResponse(data) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+            responseDiv.style.display = 'block';
+        }
+
+        function showMessage(message, type) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.success, .error');
+            existingMessages.forEach(msg => msg.remove());
+            
+            // Create new message
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            
+            // Insert after the title
+            const container = document.querySelector('.container');
+            const title = container.querySelector('h1');
+            title.insertAdjacentElement('afterend', messageDiv);
+        }
+    </script>
+</body>
+</html>

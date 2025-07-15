@@ -6,7 +6,12 @@ import hospitalRoutes from './routes/hospitals';
 import userRoutes from './routes/users';
 import dashboardRoutes from './routes/dashboard';
 import authRoutes from './routes/auth';
+import patientRoutes from './routes/patients';
+import appointmentRoutes from './routes/appointments';
+import patientAuthRoutes from './routes/patient-auth';
+import appointmentDocumentRoutes from './routes/appointment-documents';
 import { testConnection } from './config/database';
+import { DefaultUserService } from './services/DefaultUserService';
 
 // Load environment variables
 dotenv.config();
@@ -38,6 +43,10 @@ app.use('/api/hospitals', hospitalRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/patients', patientRoutes);
+app.use('/api/appointments', appointmentRoutes);
+app.use('/api/patient-auth', patientAuthRoutes);
+app.use('/api/appointment-documents', appointmentDocumentRoutes);
 
 function main(): void {
     app.listen(PORT, async () => {
@@ -48,12 +57,23 @@ function main(): void {
         console.log(`📋 API info: http://localhost:${PORT}/api/info`);
         console.log(`🏥 Hospital registration: http://localhost:${PORT}/api/hospitals/register`);
         console.log(`👥 Users management: http://localhost:${PORT}/api/users`);
-        console.log(`📊 Super Admin Dashboard: http://localhost:${PORT}/api/dashboard/stats`);
-        console.log(`🔐 Authentication: http://localhost:${PORT}/api/auth/generate-otp`);
+        console.log(`� Patients management: http://localhost:${PORT}/api/patients`);
+        console.log(`📅 Appointments: http://localhost:${PORT}/api/appointments`);
+        console.log(`�📊 Super Admin Dashboard: http://localhost:${PORT}/api/dashboard/stats`);
+        console.log(`🔐 Admin Authentication: http://localhost:${PORT}/api/auth/generate-otp`);
+        console.log(`📱 Patient Authentication: http://localhost:${PORT}/api/patient-auth/generate-otp`);
         
         // Test database connection
         console.log(`\n🔌 Testing database connection...`);
         await testConnection();
+        
+        // Create default super admin user
+        console.log(`\n👑 Initializing default super admin...`);
+        try {
+            await DefaultUserService.createDefaultSuperAdmin();
+        } catch (error) {
+            console.error('❌ Failed to initialize default super admin:', error);
+        }
     });
 }
 
