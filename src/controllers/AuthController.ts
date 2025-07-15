@@ -240,12 +240,13 @@ export class AuthController {
         }
     }
 
+
+
         // Get current user's profile based on session token
     static async myProfile(req: Request, res: Response): Promise<void> {
         const client = await pool.connect();
 
          const reqAny = req as any;
-        console.log('Retrieving profile for user:', reqAny.user);
         try {
             // Accept token from query, header, or body
             const token = req.headers['authorization'];
