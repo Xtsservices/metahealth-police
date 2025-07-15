@@ -70,9 +70,12 @@ export class SchemaMigrationService {
             const startTime = Date.now();
             
             // Execute migration
-            const sqlStatements = Array.isArray(migration.sql) ? migration.sql : [migration.sql];
-            for (const sql of sqlStatements) {
-                await client.query(sql);
+            if (Array.isArray(migration.sql)) {
+                for (const sql of migration.sql) {
+                    await client.query(sql + ';');
+                }
+            } else {
+                await client.query(migration.sql);
             }
             
             const executionTime = Date.now() - startTime;
@@ -193,7 +196,8 @@ export class SchemaMigrationService {
             version: '2025.01.01_hospital_approval_fields',
             description: 'Add approval fields to hospitals table',
             sql: [
-                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'pending'`,
+                `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'pending'`,
+                `ALTER TABLE hospitals ALTER COLUMN approval_status SET NOT NULL`,
                 `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_by UUID`,
                 `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE`,
                 `ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS approval_notes TEXT`,
@@ -213,7 +217,8 @@ export class SchemaMigrationService {
             version: '2025.01.03_user_status_column',
             description: 'Add status field to users table',
             sql: [
-                `ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'inactive'`,
+                `ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'inactive'`,
+                `ALTER TABLE users ALTER COLUMN status SET NOT NULL`,
                 `ALTER TABLE users ADD CONSTRAINT IF NOT EXISTS users_status_check CHECK (status IN ('active', 'inactive', 'suspended'))`,
                 `CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`
             ],
@@ -227,7 +232,8 @@ export class SchemaMigrationService {
             version: '2025.01.07_user_active_status',
             description: 'Add is_active field to users table',
             sql: [
-                `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`,
+                `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`,
+                `ALTER TABLE users ALTER COLUMN is_active SET NOT NULL`,
                 `CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)`
             ],
             rollback: [

@@ -10,6 +10,7 @@ import patientRoutes from './routes/patients';
 import appointmentRoutes from './routes/appointments';
 import patientAuthRoutes from './routes/patient-auth';
 import appointmentDocumentRoutes from './routes/appointment-documents';
+import databaseRoutes from './routes/database.routes';
 import { testConnection } from './config/database';
 import { DefaultUserService } from './services/DefaultUserService';
 import { DatabaseInitService } from './services/DatabaseInitService';
@@ -48,6 +49,7 @@ app.use('/api/patients', patientRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/patient-auth', patientAuthRoutes);
 app.use('/api/appointment-documents', appointmentDocumentRoutes);
+app.use('/api/database', databaseRoutes);
 
 function main(): void {
     app.listen(PORT, async () => {
