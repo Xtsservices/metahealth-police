@@ -12,6 +12,7 @@ import patientAuthRoutes from './routes/patient-auth';
 import appointmentDocumentRoutes from './routes/appointment-documents';
 import { testConnection } from './config/database';
 import { DefaultUserService } from './services/DefaultUserService';
+import { DatabaseInitService } from './services/DatabaseInitService';
 
 // Load environment variables
 dotenv.config();
@@ -54,11 +55,13 @@ function main(): void {
         console.log(`📍 Environment: ${NODE_ENV}`);
         console.log(`🌐 Server: http://localhost:${PORT}`);
         console.log(`⚡ Health check: http://localhost:${PORT}/api/health`);
-        console.log(`📋 API info: http://localhost:${PORT}/api/info`);
+        console.log(`� Database status: http://localhost:${PORT}/api/database/status`);
+        console.log(`�📋 API info: http://localhost:${PORT}/api/info`);
         console.log(`🏥 Hospital registration: http://localhost:${PORT}/api/hospitals/register`);
         console.log(`👥 Users management: http://localhost:${PORT}/api/users`);
         console.log(`� Patients management: http://localhost:${PORT}/api/patients`);
         console.log(`📅 Appointments: http://localhost:${PORT}/api/appointments`);
+        console.log(`📄 Document uploads: http://localhost:${PORT}/api/appointment-documents`);
         console.log(`�📊 Super Admin Dashboard: http://localhost:${PORT}/api/dashboard/stats`);
         console.log(`🔐 Admin Authentication: http://localhost:${PORT}/api/auth/generate-otp`);
         console.log(`📱 Patient Authentication: http://localhost:${PORT}/api/patient-auth/generate-otp`);
@@ -66,6 +69,15 @@ function main(): void {
         // Test database connection
         console.log(`\n🔌 Testing database connection...`);
         await testConnection();
+        
+        // Initialize database schema
+        console.log(`\n🏗️  Initializing database schema...`);
+        try {
+            await DatabaseInitService.initializeDatabase();
+        } catch (error) {
+            console.error('❌ Failed to initialize database schema:', error);
+            console.log('⚠️  Server will continue but some features may not work properly');
+        }
         
         // Create default super admin user
         console.log(`\n👑 Initializing default super admin...`);
