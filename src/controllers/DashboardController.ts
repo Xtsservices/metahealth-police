@@ -367,6 +367,7 @@ export class DashboardController {
                     h.registration_date,
                     h.address_city,
                     h.address_state,
+                    h.contact_phone,
                     COUNT(u.id) as user_count
                 FROM hospitals h
                 LEFT JOIN users u ON h.id = u.hospital_id
@@ -414,6 +415,7 @@ export class DashboardController {
                 licenseNumber: row.license_number,
                 status: row.status,
                 registrationDate: row.registration_date,
+                contactPhone: row.contact_phone,
                 location: `${row.address_city}, ${row.address_state}`,
                 userCount: parseInt(row.user_count)
             }));
