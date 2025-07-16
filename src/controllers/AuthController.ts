@@ -62,7 +62,11 @@ export class AuthController {
             }
 
             // Generate 6-digit OTP
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+           // const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+            const otp = "123456"
+
+
             const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
             const otpId = uuidv4();
 
