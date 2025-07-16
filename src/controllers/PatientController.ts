@@ -105,13 +105,13 @@ export class PatientController {
                 const now = new Date();
                 now.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
                 
-                if (new Date(defaultAppointmentDate) < now) {
-                    res.status(400).json({
-                        success: false,
-                        message: 'Appointment date cannot be in the past'
-                    });
-                    return;
-                }
+                // if (new Date(defaultAppointmentDate) < now) {
+                //     res.status(400).json({
+                //         success: false,
+                //         message: 'Appointment date cannot be in the past'
+                //     });
+                //     return;
+                // }
 
                 // Check if hospital exists and is active
                 const hospitalQuery = `SELECT id, name, status FROM hospitals WHERE id = $1`;
