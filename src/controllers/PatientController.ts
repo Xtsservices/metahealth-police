@@ -14,6 +14,7 @@ export class PatientController {
                 mobile, 
                 aadhar, 
                 policeIdNo,
+                gender, // New field
                 // Appointment data
                 appointmentDate,
                 appointmentTime,
@@ -27,22 +28,23 @@ export class PatientController {
             console.log("ss",hospitalId)
 
             // Validate required fields
-            if (!name || !mobile || !aadhar || !policeIdNo) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Required patient fields are: name, mobile, aadhar, policeIdNo'
-                });
-                return;
-            }
+             if (!name || !mobile || !aadhar || !policeIdNo || !gender) {
+            res.status(400).json({
+                success: false,
+                message: 'Required patient fields are: name, mobile, aadhar, policeIdNo, gender'
+            });
+            return;
+        }
 
-            // Check if user belongs to a hospital (hospital_admin should have hospital_id)
-            if (!hospitalId && req.user?.role === 'hospital_admin') {
-                res.status(400).json({
-                    success: false,
-                    message: 'Hospital admin must be associated with a hospital to create patients'
-                });
-                return;
-            }
+        // Validate gender value
+        const validGenders = ['male', 'female', 'other'];
+        if (!validGenders.includes(gender.toLowerCase())) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid gender. Must be one of: male, female, other'
+            });
+            return;
+        }
 
             // Always create appointment - set default values if not provided
             const defaultAppointmentDate = appointmentDate || new Date().toISOString().split('T')[0]; // Today
@@ -182,11 +184,11 @@ export class PatientController {
             await client.query('BEGIN');
             
             const insertPatientQuery = `
-                INSERT INTO patients (
-                    id, name, mobile, aadhar, police_id_no, status, created_date, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                RETURNING id, name, mobile, aadhar, police_id_no, status, created_date
-            `;
+            INSERT INTO patients (
+                id, name, mobile, aadhar, police_id_no, gender, status, created_date, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING id, name, mobile, aadhar, police_id_no, gender, status, created_date
+        `;
 
             const patientValues = [
                 patientId,
@@ -194,6 +196,7 @@ export class PatientController {
                 mobile.trim(),
                 aadhar.trim(),
                 policeIdNo.trim(),
+                gender.toLowerCase().trim(),
                 'active'
             ];
 
@@ -236,6 +239,8 @@ export class PatientController {
                     mobile: newPatient.mobile,
                     aadhar: newPatient.aadhar,
                     policeIdNo: newPatient.police_id_no,
+                                    gender: newPatient.gender,
+
                     status: newPatient.status,
                     createdDate: newPatient.created_date
                 },
